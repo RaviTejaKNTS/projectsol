@@ -139,12 +139,14 @@ function CustomDatePicker({
   value, 
   onChange, 
   className = "",
-  theme = { input: "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800", border: "border-zinc-200 dark:border-zinc-800" }
+  theme = { input: "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800", border: "border-zinc-200 dark:border-zinc-800" },
+  compact = false
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
   theme?: any;
+  compact?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
@@ -257,7 +259,9 @@ function CustomDatePicker({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3 min-w-[280px]"
+            className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3 ${
+              compact ? 'min-w-[240px]' : 'min-w-[280px]'
+            }`}
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
@@ -292,7 +296,7 @@ function CustomDatePicker({
             {/* Calendar grid */}
             <div className="grid grid-cols-7 gap-1">
               {Array.from({ length: firstDayOfMonth }, (_, i) => (
-                <div key={`empty-${i}`} className="h-8" />
+                <div key={`empty-${i}`} className={compact ? "h-6" : "h-8"} />
               ))}
               {Array.from({ length: daysInMonth }, (_, i) => {
                 const day = i + 1;
@@ -306,7 +310,7 @@ function CustomDatePicker({
                     key={day}
                     type="button"
                     onClick={() => handleDateSelect(day)}
-                    className={`h-8 text-sm rounded-lg transition-colors ${
+                    className={`${compact ? 'h-6 text-xs' : 'h-8 text-sm'} rounded-lg transition-colors ${
                       isSelected
                         ? 'bg-emerald-500 text-white'
                         : isToday
@@ -1104,7 +1108,7 @@ export default function TasksMintApp() {
                 <button
                   type="button"
                   onClick={() => setState((s: any) => ({ ...s, showFilters: !s.showFilters }))}
-                  className={`inline-flex items-center gap-2 rounded-2xl border ${border} ${surface} px-3 py-2 text-sm ${subtle}`}
+                  className={`inline-flex items-center gap-2 rounded-2xl border ${border} ${surface} px-3 py-2 text-sm ${subtle} min-w-[80px] justify-center`}
                 >
                   <Filter className="h-4 w-4" /> Filters
                   <ChevronDown className="h-4 w-4 opacity-80" />
@@ -1177,7 +1181,7 @@ export default function TasksMintApp() {
               </div>
 
               <div className="hidden lg:flex items-center gap-2">
-                <span className={`text-xs ${muted}`}>Sort</span>
+                <span className={`text-xs ${muted} min-w-[32px]`}>Sort</span>
                 <CustomDropdown
                   value={state.sortMode}
                   onChange={(value) => setState((s: any) => ({ ...s, sortMode: value }))}
@@ -1197,7 +1201,7 @@ export default function TasksMintApp() {
             <button
               type="button"
               onClick={() => setState((s: any) => ({ ...s, showSettings: true }))}
-              className={`inline-flex items-center gap-1 sm:gap-2 rounded-2xl border ${border} ${surface} px-2 sm:px-3 py-2 text-sm ${subtle}`}
+              className={`inline-flex items-center gap-1 sm:gap-2 rounded-2xl border ${border} ${surface} px-2 sm:px-3 py-2 text-sm ${subtle} min-w-[80px] justify-center`}
             >
               <SettingsIcon className="h-4 w-4" /> <span className="hidden sm:inline">Settings</span>
             </button>
@@ -1244,9 +1248,6 @@ export default function TasksMintApp() {
   </div>
 )}
 {/* AUTH_OVERLAY_END */}
-
-
-
 
         {/* Filters notice */}
         {filtersActive ? (
@@ -1415,7 +1416,7 @@ function Column({ col, tasks, ids, theme, onOpenNew, onOpenEdit, onDeleteColumn,
 
       {/* Sortable list for this column */}
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className={`flex-1 min-h-[48px] rounded-2xl border border-dashed ${theme.border} p-2 space-y-2 overflow-y-auto overflow-x-hidden`}>
+        <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-2xl border border-dashed ${theme.border} p-2 space-y-2 overflow-y-auto overflow-x-hidden`}>
           <AnimatePresence initial={false}>
             {ids.map((taskId: string) => (
               <SortableCard
@@ -1613,9 +1614,9 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 10 }}
-        className={`relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border ${theme.border} ${theme.surface} p-3 sm:p-4`}
+        className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border ${theme.border} ${theme.surface} p-3 sm:p-4`}
       >
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-4">
           <h3 className="text-base font-semibold">{isEdit ? "Edit task" : "New task"}</h3>
           {isEdit && (
             <span className={`ml-2 text-xs ${theme.muted}`}>
@@ -1627,25 +1628,32 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="lg:col-span-2 space-y-3">
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Task title"
-              className={`w-full rounded-2xl ${theme.input} px-3 py-2 text-sm focus:outline-none`}
-            />
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description"
-              rows={6}
-              className={`w-full rounded-2xl ${theme.input} px-3 py-2 text-sm focus:outline-none`}
-            />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="xl:col-span-2 space-y-4">
+            <div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Task title</label>
+              <input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter task title..."
+                className={`w-full rounded-2xl ${theme.input} px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+              />
+            </div>
+            
+            <div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe your task..."
+                rows={4}
+                className={`w-full rounded-2xl ${theme.input} px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none`}
+              />
+            </div>
 
             <div>
-              <div className={`text-xs ${theme.muted} mb-1`}>Subtasks</div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Subtasks</label>
               <div className="space-y-2">
                 {/* Existing subtasks */}
                 {subtasks.map((s: any, i: number) => (
@@ -1658,6 +1666,7 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                           arr.map((it: any, idx: number) => (idx === i ? { ...it, done: e.target.checked } : it))
                         )
                       }
+                      className="rounded"
                     />
                     <input
                       value={s.title}
@@ -1666,7 +1675,7 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                           arr.map((it: any, idx: number) => (idx === i ? { ...it, title: e.target.value } : it))
                         )
                       }
-                      className={`flex-1 rounded-xl ${theme.input} px-2 py-1 text-sm`}
+                      className={`flex-1 rounded-xl ${theme.input} px-2.5 py-1.5 text-sm`}
                     />
                     <button
                       type="button"
@@ -1691,12 +1700,12 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                       }
                     }}
                     placeholder="Add subtask and press Enter"
-                    className={`flex-1 rounded-xl ${theme.input} px-2 py-2 text-sm`}
+                    className={`flex-1 rounded-xl ${theme.input} px-2.5 py-1.5 text-sm`}
                   />
                   <button
                     type="button"
                     onClick={addSubtaskFromInput}
-                    className="px-2.5 py-2 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25"
+                    className="px-2.5 py-1.5 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors"
                   >
                     Add
                   </button>
@@ -1705,9 +1714,9 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <div className={`text-xs ${theme.muted} mb-1`}>Column</div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Column</label>
               <CustomDropdown
                 value={columnId}
                 onChange={setColumnId}
@@ -1718,7 +1727,7 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
             </div>
 
             <div>
-              <div className={`text-xs ${theme.muted} mb-1`}>Priority</div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Priority</label>
               <CustomDropdown
                 value={priority}
                 onChange={setPriority}
@@ -1729,18 +1738,19 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
             </div>
 
             <div>
-              <div className={`text-xs ${theme.muted} mb-1`}>Due date</div>
+              <label className={`block text-xs ${theme.muted} mb-2`}>Due date</label>
               <CustomDatePicker
                 value={dueDate}
                 onChange={setDueDate}
                 className="w-full"
                 theme={theme}
+                compact={true}
               />
             </div>
 
             <div>
-              <div className={`text-xs ${theme.muted} mb-1`}>Labels</div>
-              <div className="flex flex-wrap gap-2">
+              <label className={`block text-xs ${theme.muted} mb-2`}>Labels</label>
+              <div className="flex flex-wrap gap-2 mb-2">
                 {allLabels.map((l: string) => {
                   const active = labels.includes(l);
                   return (
@@ -1748,7 +1758,9 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                       key={l}
                       type="button"
                       onClick={() => setLabels((arr) => (active ? arr.filter((x) => x !== l) : [...arr, l]))}
-                      className={`px-2.5 py-1 rounded-xl text-xs border ${theme.border} ${active ? "bg-emerald-500/10" : ""}`}
+                      className={`px-2.5 py-1 rounded-xl text-xs border ${theme.border} transition-colors ${
+                        active ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      }`}
                     >
                       #{l}
                     </button>
@@ -1756,7 +1768,7 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                 })}
               </div>
               <input
-                placeholder="New label"
+                placeholder="Type new label and press Enter"
                 onKeyDown={(e) => {
                   const v = (e.currentTarget as HTMLInputElement).value.trim();
                   if (e.key === "Enter" && v) {
@@ -1764,13 +1776,13 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                     (e.currentTarget as HTMLInputElement).value = "";
                   }
                 }}
-                className={`mt-2 w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
+                className={`w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
               />
             </div>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-zinc-200 dark:border-zinc-700">
           {isEdit && (
             <button
               type="button"
@@ -1778,7 +1790,7 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
                 onDelete(task.id);
                 onClose();
               }}
-              className="px-3 py-2 rounded-xl text-sm border border-rose-600 bg-rose-500/15 hover:bg-rose-500/25 sm:w-auto"
+              className="px-4 py-2.5 rounded-xl text-sm border border-rose-600 bg-rose-500/15 hover:bg-rose-500/25 transition-colors sm:w-auto"
             >
               Delete
             </button>
@@ -1787,14 +1799,14 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
             <button
               type="button"
               onClick={onClose}
-              className={`flex-1 sm:flex-none px-3 py-2 rounded-xl text-sm border ${theme.border} ${theme.subtle}`}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm border ${theme.border} ${theme.subtle} transition-colors`}
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 sm:flex-none px-3 py-2 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25"
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors"
             >
               {isEdit ? "Save" : "Create"}
             </button>
@@ -1927,7 +1939,7 @@ function AddColumnCard({ adding, tempTitle, onChangeTitle, onStart, onAdd, onCan
         <button
           type="button"
           onClick={onStart}
-          className={`w-full flex-1 min-h-[120px] rounded-2xl border border-dashed ${theme.border} ${theme.subtle} text-sm flex items-center justify-center`}
+          className={`w-full flex-1 min-h-0 rounded-2xl border border-dashed ${theme.border} ${theme.subtle} text-sm flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
         >
           <Plus className="h-4 w-4 mr-2" /> Add column
         </button>
