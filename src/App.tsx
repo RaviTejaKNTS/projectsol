@@ -41,6 +41,311 @@ import confetti from "canvas-confetti";
 import { ProfileButton } from './components/ProfileButton';
 import { useCloudState } from './hooks/useCloudState';
 import { useAuth } from './contexts/AuthProvider';
+
+// Custom Dropdown Component
+function CustomDropdown({ 
+  value, 
+  onChange, 
+  options, 
+  placeholder = "Select option",
+  className = "",
+  theme = { surface: "bg-white dark:bg-zinc-900", border: "border-zinc-200 dark:border-zinc-800", muted: "text-zinc-500 dark:text-zinc-400" }
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  className?: string;
+  theme?: any;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const selectedOption = options.find(opt => opt.value === value);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown on escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  const handleSelect = (optionValue: string) => {
+    onChange(optionValue);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+      >
+        <span className={selectedOption ? "text-zinc-900 dark:text-zinc-100" : theme.muted}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${theme.muted}`} />
+      </button>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border ${theme.border} ${theme.surface} shadow-lg max-h-60 overflow-auto`}
+          >
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelect(option.value)}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
+                  option.value === value 
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' 
+                    : 'text-zinc-900 dark:text-zinc-100'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Custom Date Picker Component
+function CustomDatePicker({ 
+  value, 
+  onChange, 
+  className = "",
+  theme = { input: "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800", border: "border-zinc-200 dark:border-zinc-800" }
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  theme?: any;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+  const [currentDate, setCurrentDate] = useState(() => {
+    if (value) {
+      const date = new Date(value);
+      return { year: date.getFullYear(), month: date.getMonth() };
+    }
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+
+  // Close date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close date picker on escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "No due date";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const handleDateSelect = (day: number) => {
+    const selectedDate = new Date(currentDate.year, currentDate.month, day);
+    onChange(selectedDate.toISOString().split('T')[0]);
+    setIsOpen(false);
+  };
+
+  const clearDate = () => {
+    onChange("");
+    setIsOpen(false);
+  };
+
+  const navigateMonth = (direction: number) => {
+    setCurrentDate(prev => {
+      let newMonth = prev.month + direction;
+      let newYear = prev.year;
+      
+      if (newMonth > 11) {
+        newMonth = 0;
+        newYear++;
+      } else if (newMonth < 0) {
+        newMonth = 11;
+        newYear--;
+      }
+      
+      return { year: newYear, month: newMonth };
+    });
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const daysInMonth = getDaysInMonth(currentDate.year, currentDate.month);
+  const firstDayOfMonth = getFirstDayOfMonth(currentDate.year, currentDate.month);
+  const today = new Date();
+  const selectedDate = value ? new Date(value) : null;
+
+  return (
+    <div className={`relative ${className}`} ref={datePickerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.input} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+      >
+        <span className={value ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"}>
+          {formatDate(value)}
+        </span>
+        <Calendar className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
+      </button>
+      
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3 min-w-[280px]"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={() => navigateMonth(-1)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <ChevronDown className="h-4 w-4 rotate-90" />
+              </button>
+              <span className="text-sm font-medium">
+                {monthNames[currentDate.month]} {currentDate.year}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigateMonth(1)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                <ChevronDown className="h-4 w-4 -rotate-90" />
+              </button>
+            </div>
+
+            {/* Day names */}
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-xs text-center text-zinc-500 dark:text-zinc-400 py-1">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: firstDayOfMonth }, (_, i) => (
+                <div key={`empty-${i}`} className="h-8" />
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => {
+                const day = i + 1;
+                const date = new Date(currentDate.year, currentDate.month, day);
+                const isToday = date.toDateString() === today.toDateString();
+                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+                const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => handleDateSelect(day)}
+                    className={`h-8 text-sm rounded-lg transition-colors ${
+                      isSelected
+                        ? 'bg-emerald-500 text-white'
+                        : isToday
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                        : isPast
+                        ? 'text-zinc-400 dark:text-zinc-500'
+                        : 'text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={clearDate}
+                className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                Clear date
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function InlineEmailSignIn({ onSend }: { onSend: (email: string) => Promise<void> }) {
   const [email, setEmail] = React.useState('')
   const [sent, setSent] = React.useState(false)
@@ -873,16 +1178,18 @@ export default function TasksMintApp() {
 
               <div className="hidden lg:flex items-center gap-2">
                 <span className={`text-xs ${muted}`}>Sort</span>
-                <select
+                <CustomDropdown
                   value={state.sortMode}
-                  onChange={(e) => setState((s: any) => ({ ...s, sortMode: e.target.value }))}
-                  className={`${surface} border ${border} rounded-xl text-sm px-2.5 py-2 focus:outline-none`}
-                >
-                  <option value="manual">Manual</option>
-                  <option value="due">Due date</option>
-                  <option value="priority">Priority</option>
-                  <option value="created">Newest</option>
-                </select>
+                  onChange={(value) => setState((s: any) => ({ ...s, sortMode: value }))}
+                  options={[
+                    { value: "manual", label: "Manual" },
+                    { value: "due", label: "Due date" },
+                    { value: "priority", label: "Priority" },
+                    { value: "created", label: "Newest" }
+                  ]}
+                  className="w-32"
+                  theme={{ surface, border, muted }}
+                />
               </div>
             </div>
 
@@ -1401,42 +1708,33 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
           <div className="space-y-3">
             <div>
               <div className={`text-xs ${theme.muted} mb-1`}>Column</div>
-              <select
+              <CustomDropdown
                 value={columnId}
-                onChange={(e) => setColumnId(e.target.value)}
-                className={`w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
-              >
-                {state.columns.map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
+                onChange={setColumnId}
+                options={state.columns.map((c: any) => ({ value: c.id, label: c.title }))}
+                className="w-full"
+                theme={theme}
+              />
             </div>
 
             <div>
               <div className={`text-xs ${theme.muted} mb-1`}>Priority</div>
-              <select
+              <CustomDropdown
                 value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className={`w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                onChange={setPriority}
+                options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+                className="w-full"
+                theme={theme}
+              />
             </div>
 
             <div>
               <div className={`text-xs ${theme.muted} mb-1`}>Due date</div>
-              <input
-                id="dueInput"
-                type="date"
+              <CustomDatePicker
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={`w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
+                onChange={setDueDate}
+                className="w-full"
+                theme={theme}
               />
             </div>
 
