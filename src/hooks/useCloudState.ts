@@ -150,5 +150,31 @@ export function useCloudState(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, state])
 
-  return { status }
+  // Force sync function that can be called manually
+  const forceSync = async () => {
+    if (!user || !saveEnabled.current) return
+    
+    try {
+      setStatus('saving')
+      const { data, error } = await supabase
+        .from('app_state')
+        .upsert({ user_id: user.id, state, last_write_by: instanceId.current }, { onConflict: 'user_id' })
+        .select('updated_at')
+        .single()
+      if (error) throw error
+      
+      lastServerUpdatedAt.current = data.updated_at
+      lastLocalUpdatedAt.current = data.updated_at
+      setStatus('saved')
+    } catch (e) {
+      console.warn('force sync failed', e)
+      setStatus('error')
+      // Retry after a delay
+      setTimeout(() => {
+        setStatus('idle')
+      }, 5000)
+    }
+  };
+
+  return { status, forceSync }
 }
