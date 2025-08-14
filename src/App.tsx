@@ -628,96 +628,134 @@ export default function TasksMintApp() {
       }));
     };
 
-    const onKey = (e: KeyboardEvent) => {
+    // Professional keyboard shortcut handler with proper input field detection
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Early returns for better performance and clarity
       if (state.showTaskModal || state.showSettings) return;
-      const tag = (e.target as HTMLElement).tagName;
-      const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(tag);
+      
+      // Check if we're in an input field or contenteditable element
+      const target = e.target as HTMLElement;
+      const isInputField = target.matches('input, textarea, select, [contenteditable="true"]');
+      const isInModal = target.closest('[role="dialog"], [data-modal]');
+      
+      // Don't trigger shortcuts when typing in input fields or when in modals
+      if (isInputField || isInModal) return;
+      
+      // Check if any modifier keys are pressed (except for specific shortcuts)
+      const hasModifiers = e.ctrlKey || e.metaKey || e.altKey;
       const combo = serializeCombo(e);
       const sc = state.shortcuts;
+      
+      // Handle global shortcuts (always available)
       if (combo === sc.newTask) {
         e.preventDefault();
         openNewTask();
         return;
       }
+      
       if (combo === sc.newColumn) {
         e.preventDefault();
         startAddColumn();
         return;
       }
+      
       if (combo === sc.search) {
         e.preventDefault();
         document.getElementById("searchInput")?.focus();
         return;
       }
+      
       if (combo === sc.toggleFilters) {
         e.preventDefault();
         setState((s: any) => ({ ...s, showFilters: !s.showFilters }));
         return;
       }
-      if (inInput) return;
-      if (combo === sc.moveTaskUp) {
-        e.preventDefault();
-        moveWithin("ArrowUp");
-        return;
+      
+      // Handle task navigation shortcuts (only when no modifiers)
+      if (!hasModifiers) {
+        if (combo === sc.moveTaskUp) {
+          e.preventDefault();
+          moveWithin("ArrowUp");
+          return;
+        }
+        
+        if (combo === sc.moveTaskDown) {
+          e.preventDefault();
+          moveWithin("ArrowDown");
+          return;
+        }
+        
+        if (combo === sc.moveTaskLeft) {
+          e.preventDefault();
+          moveAcross("ArrowLeft");
+          return;
+        }
+        
+        if (combo === sc.moveTaskRight) {
+          e.preventDefault();
+          moveAcross("ArrowRight");
+          return;
+        }
+        
+        // Arrow key navigation (only when no task is selected or for basic navigation)
+        if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+          navigate(e.key);
+          return;
+        }
       }
-      if (combo === sc.moveTaskDown) {
-        e.preventDefault();
-        moveWithin("ArrowDown");
-        return;
-      }
-      if (combo === sc.moveTaskLeft) {
-        e.preventDefault();
-        moveAcross("ArrowLeft");
-        return;
-      }
-      if (combo === sc.moveTaskRight) {
-        e.preventDefault();
-        moveAcross("ArrowRight");
-        return;
-      }
-      if (["arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        navigate(e.key);
-        return;
-      }
+      
+      // Handle task action shortcuts
       if (combo === sc.completeTask) {
         e.preventDefault();
         toggleComplete();
         return;
       }
+      
       if (combo === sc.deleteTask && state.selectedTaskId) {
         e.preventDefault();
         deleteTask(state.selectedTaskId);
         setState((s: any) => ({ ...s, selectedTaskId: null }));
         return;
       }
+      
+      // Handle priority shortcuts
       if (combo === sc.priority1) {
         e.preventDefault();
         setPriorityShortcut("Urgent");
         return;
       }
+      
       if (combo === sc.priority2) {
         e.preventDefault();
         setPriorityShortcut("High");
         return;
       }
+      
       if (combo === sc.priority3) {
         e.preventDefault();
         setPriorityShortcut("Medium");
         return;
       }
+      
       if (combo === sc.priority4) {
         e.preventDefault();
         setPriorityShortcut("Low");
         return;
       }
+      
       if (combo === sc.setDueDate) {
         e.preventDefault();
         setDueDateShortcut();
+        return;
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    // Add event listener
+    window.addEventListener("keydown", onKeyDown);
+    
+    // Cleanup
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [state, openNewTask, startAddColumn, deleteTask]);
 
   useEffect(() => {
@@ -1183,36 +1221,76 @@ function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete,
   const [newSubtask, setNewSubtask] = useState<string>("");
   const [columnId, setColumnId] = useState(editingTaskId?.columnId || state.columns[0]?.id);
 
-  // Keyboard shortcuts
+  const handleSave = () =>
+    onSave({ title, description, priority, dueDate, labels, subtasks }, columnId, isEdit ? task.id : undefined);
+
+  // Keyboard shortcuts for task modal
   useEffect(() => {
     const sc = state.shortcuts;
     const onKey = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      const target = e.target as HTMLElement;
+      const isInputField = target.matches('input, textarea, select');
+      
+      // Handle Escape key (always available)
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      
+      // Handle Enter key (only when not in textarea)
+      if (e.key === "Enter" && target.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        handleSave();
+        return;
+      }
+      
+      // Don't trigger other shortcuts when typing
+      if (isInputField) return;
+      
+      // Handle priority shortcuts
       const combo = serializeCombo(e);
-      if (combo === sc.priority1) setPriority("Urgent");
-      if (combo === sc.priority2) setPriority("High");
-      if (combo === sc.priority3) setPriority("Medium");
-      if (combo === sc.priority4) setPriority("Low");
+      if (combo === sc.priority1) {
+        e.preventDefault();
+        setPriority("Urgent");
+        return;
+      }
+      if (combo === sc.priority2) {
+        e.preventDefault();
+        setPriority("High");
+        return;
+      }
+      if (combo === sc.priority3) {
+        e.preventDefault();
+        setPriority("Medium");
+        return;
+      }
+      if (combo === sc.priority4) {
+        e.preventDefault();
+        setPriority("Low");
+        return;
+      }
+      
+      // Handle due date shortcut
       if (combo === sc.setDueDate) {
         e.preventDefault();
         (document.getElementById("dueInput") as HTMLInputElement)?.focus();
+        return;
       }
+      
+      // Handle delete shortcut (only in edit mode)
       if (combo === sc.deleteTask && isEdit && task) {
         e.preventDefault();
         onDelete(task.id);
         onClose();
-      }
-      if (e.key === "Escape") onClose();
-      if (e.key === "Enter" && (e.target as HTMLElement)?.tagName !== "TEXTAREA") {
-        e.preventDefault();
-        handleSave();
+        return;
       }
     };
+    
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [title, description, priority, dueDate, labels, subtasks, columnId, state.shortcuts, isEdit, task]);
-
-  const handleSave = () =>
-    onSave({ title, description, priority, dueDate, labels, subtasks }, columnId, isEdit ? task.id : undefined);
+  }, [title, description, priority, dueDate, labels, subtasks, columnId, state.shortcuts, isEdit, task, onClose, onDelete, handleSave]);
 
   const addSubtaskFromInput = () => {
     const v = newSubtask.trim();
