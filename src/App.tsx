@@ -421,9 +421,25 @@ export default function TasksMintApp() {
       };
       const tasks = { ...s.tasks, [id]: newTask } as any;
       let columns = s.columns;
+      
       if (!taskId) {
+        // New task: add to the specified column
         columns = s.columns.map((c: any) => (c.id === columnId ? { ...c, taskIds: [id, ...c.taskIds] } : c));
+      } else {
+        // Existing task: handle column change
+        const oldColumnId = s.columns.find((c: any) => c.taskIds.includes(taskId))?.id;
+        if (oldColumnId && oldColumnId !== columnId) {
+          // Remove from old column
+          columns = s.columns.map((c: any) => 
+            c.id === oldColumnId ? { ...c, taskIds: c.taskIds.filter((tid: string) => tid !== taskId) } : c
+          );
+          // Add to new column
+          columns = columns.map((c: any) => 
+            c.id === columnId ? { ...c, taskIds: [id, ...c.taskIds] } : c
+          );
+        }
       }
+      
       return { ...s, tasks, columns };
     });
   };
