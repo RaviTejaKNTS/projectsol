@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -6,442 +6,48 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
-  useDroppable,
 } from "@dnd-kit/core";
 import { pointerWithin } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  arrayMove,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Plus,
-  Search,
-  Trash2,
-  Edit,
-  Calendar,
-  Tag,
-  Filter,
+  Settings,
   ChevronDown,
-  AlertTriangle,
-  Upload,
-  Download,
-  Leaf,
-  GripVertical,
-  Settings as SettingsIcon,
   Sun,
   Moon,
-  X,
-  Check,
+  Leaf,
+  Search,
+  Filter,
+  Upload,
+  Download,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { ProfileButton } from './components/ProfileButton';
-import { useCloudState } from './hooks/useCloudState';
-import { useAuth } from './contexts/AuthProvider';
+import { ProfileButton } from '../components/ProfileButton';
+import { useCloudState } from '../hooks/useCloudState';
+import { useAuth } from '../contexts/AuthProvider';
+import { CustomDropdown } from "../components/common/CustomDropdown";
+import { InlineEmailSignIn } from "../components/auth/InlineEmailSignIn";
+import { SaveStatusBadge } from "../components/common/SaveStatusBadge";
+import { TaskCard } from "../components/tasks/TaskCard";
+import { Column } from "../components/tasks/Column";
+import { TaskModal } from "../components/tasks/TaskModal";
+import {
+  uid,
+  PRIORITIES,
+  priorityColor,
+  prettyDate,
+  isOverdue,
+  DEFAULT_SHORTCUTS,
+  serializeCombo,
+  reorderWithin,
+  moveItemBetween,
+  defaultState,
+  STORAGE_KEY,
+} from "../utils/helpers";
 
-// Custom Dropdown Component
-function CustomDropdown({ 
-  value, 
-  onChange, 
-  options, 
-  placeholder = "Select option",
-  className = "",
-  theme = { surface: "bg-white dark:bg-zinc-900", border: "border-zinc-200 dark:border-zinc-800", muted: "text-zinc-500 dark:text-zinc-400" }
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  placeholder?: string;
-  className?: string;
-  theme?: any;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const selectedOption = options.find(opt => opt.value === value);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
-  // Close dropdown on escape key
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
-
-  const handleSelect = (optionValue: string) => {
-    onChange(optionValue);
-    setIsOpen(false);
-  };
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
-      >
-        <span className={selectedOption ? "text-zinc-900 dark:text-zinc-100" : theme.muted}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${theme.muted}`} />
-      </button>
-      
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border ${theme.border} ${theme.surface} shadow-lg max-h-60 overflow-auto`}
-          >
-            {options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleSelect(option.value)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
-                  option.value === value 
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' 
-                    : 'text-zinc-900 dark:text-zinc-100'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// Custom Date Picker Component
-function CustomDatePicker({ 
-  value, 
-  onChange, 
-  className = "",
-  theme = { input: "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800", border: "border-zinc-200 dark:border-zinc-800" },
-  compact = false
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-  theme?: any;
-  compact?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const datePickerRef = useRef<HTMLDivElement>(null);
-  const [currentDate, setCurrentDate] = useState(() => {
-    if (value) {
-      const date = new Date(value);
-      return { year: date.getFullYear(), month: date.getMonth() };
-    }
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
-
-  // Close date picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Close date picker on escape key
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "No due date";
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
-
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    return new Date(year, month, 1).getDay();
-  };
-
-  const handleDateSelect = (day: number) => {
-    const selectedDate = new Date(currentDate.year, currentDate.month, day);
-    onChange(selectedDate.toISOString().split('T')[0]);
-    setIsOpen(false);
-  };
-
-  const clearDate = () => {
-    onChange("");
-    setIsOpen(false);
-  };
-
-  const navigateMonth = (direction: number) => {
-    setCurrentDate(prev => {
-      let newMonth = prev.month + direction;
-      let newYear = prev.year;
-      
-      if (newMonth > 11) {
-        newMonth = 0;
-        newYear++;
-      } else if (newMonth < 0) {
-        newMonth = 11;
-        newYear--;
-      }
-      
-      return { year: newYear, month: newMonth };
-    });
-  };
-
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-
-  const daysInMonth = getDaysInMonth(currentDate.year, currentDate.month);
-  const firstDayOfMonth = getFirstDayOfMonth(currentDate.year, currentDate.month);
-  const today = new Date();
-  const selectedDate = value ? new Date(value) : null;
-
-  return (
-    <div className={`relative ${className}`} ref={datePickerRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.input} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
-      >
-        <span className={value ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"}>
-          {formatDate(value)}
-        </span>
-        <Calendar className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
-      </button>
-      
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3 ${
-              compact ? 'min-w-[240px]' : 'min-w-[280px]'
-            }`}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <button
-                type="button"
-                onClick={() => navigateMonth(-1)}
-                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <ChevronDown className="h-4 w-4 rotate-90" />
-              </button>
-              <span className="text-sm font-medium">
-                {monthNames[currentDate.month]} {currentDate.year}
-              </span>
-              <button
-                type="button"
-                onClick={() => navigateMonth(1)}
-                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              >
-                <ChevronDown className="h-4 w-4 -rotate-90" />
-              </button>
-            </div>
-
-            {/* Day names */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-xs text-center text-zinc-500 dark:text-zinc-400 py-1">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: firstDayOfMonth }, (_, i) => (
-                <div key={`empty-${i}`} className={compact ? "h-6" : "h-8"} />
-              ))}
-              {Array.from({ length: daysInMonth }, (_, i) => {
-                const day = i + 1;
-                const date = new Date(currentDate.year, currentDate.month, day);
-                const isToday = date.toDateString() === today.toDateString();
-                const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
-                const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => handleDateSelect(day)}
-                    className={`${compact ? 'h-6 text-xs' : 'h-8 text-sm'} rounded-lg transition-colors ${
-                      isSelected
-                        ? 'bg-emerald-500 text-white'
-                        : isToday
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                        : isPast
-                        ? 'text-zinc-400 dark:text-zinc-500'
-                        : 'text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-              <button
-                type="button"
-                onClick={clearDate}
-                className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-              >
-                Clear date
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function InlineEmailSignIn({ onSend }: { onSend: (email: string) => Promise<void> }) {
-  const [email, setEmail] = React.useState('')
-  const [sent, setSent] = React.useState(false)
-  const [err, setErr] = React.useState<string | null>(null)
-
-  const submit = async () => {
-    setErr(null)
-    try {
-      if (!email.trim()) { setErr('Enter your email'); return }
-      await onSend(email.trim())
-      setSent(true)
-    } catch (e: any) {
-      setErr(e?.message || 'Failed to send link')
-    }
-  }
-
-  return (
-    <div className="space-y-2">
-      {!sent ? (
-        <>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-black/30 dark:focus:border-white/30"
-          />
-          <button
-            onClick={submit}
-            type="button"
-            className="w-full rounded-2xl px-4 py-2.5 text-sm font-medium border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition text-zinc-900 dark:text-zinc-100"
-          >
-            Send Magic Link
-          </button>
-        </>
-      ) : (
-        <p className="text-xs text-emerald-600 dark:text-emerald-400 text-center">Check your email for the sign-in link.</p>
-      )}
-      {err && <p className="text-xs text-red-600 text-center">{err}</p>}
-    </div>
-  )
-}
-
-const SaveStatusBadge: React.FC<{ status: 'idle'|'saving'|'saved'|'error', onForceSync?: () => void }> = ({ status, onForceSync }) => {
-  const getIcon = () => {
-    switch (status) {
-      case 'idle':
-        return <div className="h-3 w-3 rounded-full bg-zinc-400" />;
-      case 'saving':
-        return <div className="h-3 w-3 rounded-full bg-zinc-400 animate-pulse" />;
-      case 'saved':
-        return <div className="h-3 w-3 rounded-full bg-emerald-500" />;
-      case 'error':
-        return <div className="h-3 w-3 rounded-full bg-red-500" />;
-      default:
-        return <div className="h-3 w-3 rounded-full bg-zinc-400" />;
-    }
-  };
-
-  const getTooltip = () => {
-    switch (status) {
-      case 'idle':
-        return 'Click to force sync';
-      case 'saving':
-        return 'Saving...';
-      case 'saved':
-        return 'All changes saved';
-      case 'error':
-        return 'Sync error - Click to retry';
-      default:
-        return 'Click to force sync';
-    }
-  };
-
-  const isClickable = status === 'idle' || status === 'error';
-
-  return (
-    <button
-      type="button"
-      onClick={onForceSync && isClickable ? onForceSync : undefined}
-      disabled={!isClickable}
-      className={`hidden sm:flex items-center justify-center h-8 w-8 rounded-xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur shadow-sm transition-all duration-200 ${
-        isClickable 
-          ? 'hover:bg-white dark:hover:bg-zinc-900 hover:shadow-md cursor-pointer' 
-          : 'cursor-default'
-      } ${status === 'error' ? 'border-red-500/30' : ''}`}
-      title={getTooltip()}
-    >
-      {getIcon()}
-    </button>
-  );
-};
 
 
 // ------------------------------------------------------------
@@ -452,151 +58,6 @@ const SaveStatusBadge: React.FC<{ status: 'idle'|'saving'|'saved'|'error', onFor
 // keyboard shortcuts (in Settings), and confetti on Done.
 // ------------------------------------------------------------
 
-// Utilities
-const uid = () => Math.random().toString(36).slice(2, 10);
-const PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const;
-const priorityColor = (p: string) =>
-  ({
-    Low: "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30",
-    Medium: "bg-sky-500/15 text-sky-600 ring-sky-500/30",
-    High: "bg-amber-500/15 text-amber-600 ring-amber-500/30",
-    Urgent: "bg-rose-500/15 text-rose-600 ring-rose-500/30",
-  }[p] || "bg-zinc-500/15 text-zinc-600 ring-zinc-400/30");
-
-const prettyDate = (iso?: string) => {
-  if (!iso) return "No due";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "No due";
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-};
-const isOverdue = (iso?: string) => iso && new Date(iso).setHours(23, 59, 59, 999) < Date.now();
-
-const DEFAULT_SHORTCUTS = {
-  newTask: "n",
-  newColumn: "shift+n",
-  search: "/",
-  toggleFilters: "shift+f",
-  moveTaskUp: "alt+shift+arrowup",
-  moveTaskDown: "alt+shift+arrowdown",
-  moveTaskLeft: "alt+shift+arrowleft",
-  moveTaskRight: "alt+shift+arrowright",
-  deleteTask: "delete",
-  completeTask: "space",
-  priority1: "shift+1",
-  priority2: "shift+2",
-  priority3: "shift+3",
-  priority4: "shift+4",
-  setDueDate: "shift+t",
-};
-
-function serializeCombo(e: { key: string; altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) {
-  const parts: string[] = [];
-  if (e.altKey) parts.push("alt");
-  if (e.shiftKey) parts.push("shift");
-  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
-  parts.push(e.key.toLowerCase());
-  return parts.join("+");
-}
-
-// Pure helpers (also used in tests)
-function reorderWithin(ids: string[], activeId: string, overId: string | null) {
-  const from = [...ids];
-  const oldIndex = from.indexOf(activeId);
-  if (oldIndex === -1) return ids;
-  const newIndex = overId ? from.indexOf(overId) : from.length - 1;
-  if (newIndex === -1) return ids;
-  return arrayMove(from, oldIndex, newIndex);
-}
-function moveItemBetween(
-  fromIds: string[],
-  toIds: string[],
-  activeId: string,
-  overId: string | null
-) {
-  const from = [...fromIds];
-  const to = [...toIds];
-  const oldIndex = from.indexOf(activeId);
-  if (oldIndex === -1) return { from: fromIds, to: toIds };
-  from.splice(oldIndex, 1);
-  const insertIndex = overId && to.includes(overId) ? to.indexOf(overId) : to.length;
-  to.splice(insertIndex, 0, activeId);
-  return { from, to };
-}
-
-const defaultState = () => {
-  const t1 = uid();
-  const t2 = uid();
-  const t3 = uid();
-  return {
-    name: "TasksMint",
-    columns: [
-      { id: "backlog", title: "Backlog", taskIds: [t1] },
-      { id: "inprogress", title: "In Progress", taskIds: [t2] },
-      { id: "review", title: "Review", taskIds: [] },
-      { id: "done", title: "Done", taskIds: [t3] },
-    ],
-    tasks: {
-      [t1]: {
-        id: t1,
-        title: "Plan project structure",
-        description: "Decide columns, fields, and persistence.",
-        labels: ["planning"],
-        priority: "High",
-        dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        subtasks: [
-          { id: uid(), title: "Sketch data model", done: true },
-          { id: uid(), title: "Pick libraries", done: false },
-        ],
-      },
-      [t2]: {
-        id: t2,
-        title: "Build draggable cards",
-        description: "Implement drag/drop across columns.",
-        labels: ["dev"],
-        priority: "Urgent",
-        dueDate: new Date(Date.now() + 86400000).toISOString(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        subtasks: [
-          { id: uid(), title: "Render columns", done: true },
-          { id: uid(), title: "Enable dnd", done: false },
-        ],
-      },
-      [t3]: {
-        id: t3,
-        title: "Draft feature list",
-        description: "List all bells & whistles.",
-        labels: ["docs"],
-        priority: "Medium",
-        dueDate: new Date(Date.now() - 86400000 * 1).toISOString(),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        subtasks: [
-          { id: uid(), title: "Core features", done: true },
-          { id: uid(), title: "Nice-to-haves", done: true },
-        ],
-      },
-    },
-    labels: ["planning", "dev", "docs", "design", "bug"],
-    theme: "dark",
-    sortMode: "manual", // manual | due | priority | created
-    filters: { text: "", priorities: [], labels: [], due: "all" },
-    activeId: null,
-    selectedTaskId: null,
-    showTaskModal: false,
-    editingTaskId: null,
-    addingColumn: false,
-    renamingColumnId: null,
-    tempTitle: "",
-    showSettings: false,
-    showFilters: false,
-    shortcuts: { ...DEFAULT_SHORTCUTS },
-  } as any;
-};
-
-const STORAGE_KEY = "tasksmint_kanban_state_v1";
 
 export default function TasksMintApp() {
   const [state, setState] = useState<any>(() => defaultState());
@@ -783,7 +244,16 @@ export default function TasksMintApp() {
         }
       }
       
-      return { ...s, tasks, columns };
+      const newLabels = payload.labels || [];
+      const existingLabels = new Set(s.labels || []);
+      const uniqueNewLabels = newLabels.filter((label: string) => !existingLabels.has(label));
+
+      let updatedGlobalLabels = s.labels;
+      if (uniqueNewLabels.length > 0) {
+        updatedGlobalLabels = [...(s.labels || []), ...uniqueNewLabels];
+      }
+
+      return { ...s, tasks, columns, labels: updatedGlobalLabels };
     });
   };
 
@@ -1237,7 +707,7 @@ export default function TasksMintApp() {
               onClick={() => setState((s: any) => ({ ...s, showSettings: true }))}
               className={`inline-flex items-center gap-1 sm:gap-2 rounded-2xl border ${border} ${surface} px-2 sm:px-3 py-2 text-sm ${subtle} min-w-[80px] justify-center`}
             >
-              <SettingsIcon className="h-4 w-4" /> <span className="hidden sm:inline">Settings</span>
+              <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Settings</span>
             </button>
           
             <SaveStatusBadge status={saveStatus as any} onForceSync={forceSync} />
@@ -1304,7 +774,7 @@ export default function TasksMintApp() {
           onDragEnd={onDragEnd}
           onDragCancel={() => setState((s: any) => ({ ...s, activeId: null }))}
         >
-          <div className="h-full grid grid-flow-col auto-cols-[minmax(280px,90vw)] sm:auto-cols-[minmax(300px,320px)] lg:auto-cols-[minmax(320px,360px)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20 snap-x snap-mandatory touch-pan-x">
+          <div className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20">
             {state.columns.map((col: any) => (
               <Column
                 key={col.id}
@@ -1326,7 +796,6 @@ export default function TasksMintApp() {
               />
             ))}
 
-            {/* Add Column at end */}
             <AddColumnCard
               adding={state.addingColumn}
               tempTitle={state.tempTitle}
@@ -1341,7 +810,7 @@ export default function TasksMintApp() {
           <DragOverlay>
             {state.activeId && state.tasks[state.activeId] ? (
               <div className={`rounded-2xl border ${border} ${surface} p-3 shadow-lg pointer-events-none`}>
-                <CardItem task={state.tasks[state.activeId]} readOnly theme={{ muted }} />
+                <TaskCard id={state.activeId} task={state.tasks[state.activeId]} theme={{ border, surface, muted, subtle: '' }} onEdit={() => {}} onSelect={() => {}} selected={false} />
               </div>
             ) : null}
           </DragOverlay>
@@ -1395,461 +864,6 @@ export default function TasksMintApp() {
       <DevTests />
     </div>
   );
-}
-
-function Column({ col, tasks, ids, theme, onOpenNew, onOpenEdit, onDeleteColumn, onStartRename, onCancelRename, renaming, tempTitle, setTempTitle, onCommitRename, selectedTaskId, setSelectedTaskId }: any) {
-  // make the whole column body droppable so dropping on empty space works
-  const { setNodeRef } = useDroppable({ id: col.id });
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 120, damping: 18 }}
-      className={`snap-start shrink-0 min-w-0 h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-3 sm:p-4 flex flex-col relative overflow-hidden`}
-    >
-      <div className="flex items-center gap-2 mb-3 shrink-0">
-        {renaming ? (
-          <div className="flex items-center gap-2 w-full">
-            <input
-              autoFocus
-              value={tempTitle}
-              onChange={(e) => setTempTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onCommitRename();
-                if (e.key === 'Escape') onCancelRename();
-              }}
-              className="flex-1 rounded-xl px-2.5 py-1 text-sm border border-emerald-500/50 bg-emerald-500/10"
-            />
-            <button type="button" onClick={onCommitRename} className={`p-1.5 rounded-lg ${theme.subtle}`} title="Save">
-              <Check className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={onCancelRename} className={`p-1.5 rounded-lg ${theme.subtle}`} title="Cancel">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <>
-            <span className="text-sm font-medium">{col.title}</span>
-            <span className={`ml-1 text-xs ${theme.muted}`}>{ids.length}</span>
-            <div className="ml-auto flex items-center gap-1">
-              <button type="button" onClick={onOpenNew} className={`p-1 rounded-xl ${theme.subtle}`} title="New task in column">
-                <Plus className="h-4 w-4" />
-              </button>
-              <button type="button" onClick={onStartRename} className={`p-1 rounded-xl ${theme.subtle}`} title="Rename column">
-                <Edit className="h-4 w-4" />
-              </button>
-              <button type="button" onClick={() => onDeleteColumn(col.id)} className={`p-1 rounded-xl ${theme.subtle}`} title="Delete column">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Sortable list for this column */}
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className={`flex-1 min-h-0 rounded-2xl border border-dashed ${theme.border} p-2 space-y-2 overflow-y-auto overflow-x-hidden`}>
-          <AnimatePresence initial={false}>
-            {ids.map((taskId: string) => (
-              <SortableCard
-                key={taskId}
-                id={taskId}
-                task={tasks[taskId]}
-                onEdit={() => onOpenEdit(taskId)}
-                theme={theme}
-                selected={selectedTaskId === taskId}
-                onSelect={() => setSelectedTaskId(taskId)}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      </SortableContext>
-    </motion.div>
-  );
-}
-
-function SortableCard({ id, task, onEdit, theme, selected, onSelect }: any) {
-  // Trello-like: click opens; drag after moving >6px
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style = { transform: CSS.Transform.toString(transform), transition } as React.CSSProperties;
-
-  const handleCardClick: React.MouseEventHandler = () => {
-    if (!isDragging) {
-      onSelect();
-      onEdit();
-    }
-  };
-
-  return (
-    <motion.div
-      layout
-      ref={setNodeRef}
-      style={style}
-      onClick={handleCardClick}
-      onFocus={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") handleCardClick(e as any);
-      }}
-      {...attributes}
-      {...listeners}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      id={`task-${id}`}
-      className={`relative rounded-2xl border ${theme.border} ${theme.surface} p-3 shadow-sm select-none ${isDragging ? "ring-2 ring-emerald-400/40" : selected ? "ring-2 ring-emerald-500" : ""}`}
-    >
-      <div className="flex items-start gap-2">
-        <div className="text-left flex-1">
-          <div className="font-medium leading-tight">{task.title}</div>
-          {task.description && <div className={`text-xs ${theme.muted} line-clamp-2`}>{task.description}</div>}
-        </div>
-        <div className="flex items-center gap-1">
-          <span className={`p-1 rounded-lg ${theme.subtle}`} title="Drag">
-            <GripVertical className="h-4 w-4" />
-          </span>
-        </div>
-      </div>
-
-      <CardMeta task={task} />
-    </motion.div>
-  );
-}
-
-function CardMeta({ task }: any) {
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
-      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] ring-1 ${priorityColor(task.priority)}`} title={`Priority: ${task.priority}`}>
-        <AlertTriangle className="h-3 w-3" /> {task.priority}
-      </span>
-      {task.labels?.slice(0, 3).map((l: string) => (
-        <span key={l} className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] bg-zinc-700/10 text-zinc-600 ring-1 ring-zinc-400/30">
-          <Tag className="h-3 w-3" /> {l}
-        </span>
-      ))}
-      {task.labels?.length > 3 && <span className="text-[11px] text-zinc-500">+{task.labels.length - 3}</span>}
-      <span className={`ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] ring-1 ${isOverdue(task.dueDate) ? "bg-rose-500/10 text-rose-600 ring-rose-500/30" : "bg-zinc-500/10 text-zinc-600 ring-zinc-500/20"}`} title={task.dueDate ? new Date(task.dueDate).toLocaleString() : "No due"}>
-        <Calendar className="h-3 w-3" /> {prettyDate(task.dueDate)}
-      </span>
-      {task.subtasks?.length ? (
-        <div className="pt-1 text-[11px] text-zinc-500 w-full">
-          {task.subtasks.filter((s: any) => s.done).length}/{task.subtasks.length} done
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CardItem({ task, theme = { muted: "text-zinc-400" } }: any) {
-  return (
-    <div className="space-y-2">
-      <div className="font-medium leading-tight">{task.title}</div>
-      {task.description && <div className={`text-xs ${theme.muted} line-clamp-2`}>{task.description}</div>}
-      <CardMeta task={task} />
-    </div>
-  );
-}
-
-function TaskModal({ onClose, onSave, state, editingTaskId, allLabels, onDelete, theme }: any) {
-  const isEdit = Boolean(editingTaskId?.taskId);
-  const task = isEdit ? state.tasks[editingTaskId.taskId] : null;
-  const [title, setTitle] = useState(task?.title || "");
-  const [description, setDescription] = useState(task?.description || "");
-  const [priority, setPriority] = useState(task?.priority || "Medium");
-  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : "");
-  const [labels, setLabels] = useState<string[]>(task?.labels || []);
-  const [subtasks, setSubtasks] = useState<any[]>(task?.subtasks || []);
-  const [newSubtask, setNewSubtask] = useState<string>("");
-  const [columnId, setColumnId] = useState(editingTaskId?.columnId || state.columns[0]?.id);
-
-  const handleSave = () =>
-    onSave({ title, description, priority, dueDate, labels, subtasks }, columnId, isEdit ? task.id : undefined);
-
-  // Keyboard shortcuts for task modal
-  useEffect(() => {
-    const sc = state.shortcuts;
-    const onKey = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input fields
-      const target = e.target as HTMLElement;
-      const isInputField = target.matches('input, textarea, select');
-      
-      // Handle Escape key (always available)
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-        return;
-      }
-      
-      // Handle Enter key (only when not in textarea)
-      if (e.key === "Enter" && target.tagName !== "TEXTAREA") {
-        e.preventDefault();
-        handleSave();
-        return;
-      }
-      
-      // Don't trigger other shortcuts when typing
-      if (isInputField) return;
-      
-      // Handle priority shortcuts
-      const combo = serializeCombo(e);
-      if (combo === sc.priority1) {
-        e.preventDefault();
-        setPriority("Urgent");
-        return;
-      }
-      if (combo === sc.priority2) {
-        e.preventDefault();
-        setPriority("High");
-        return;
-      }
-      if (combo === sc.priority3) {
-        e.preventDefault();
-        setPriority("Medium");
-        return;
-      }
-      if (combo === sc.priority4) {
-        e.preventDefault();
-        setPriority("Low");
-        return;
-      }
-      
-      // Handle due date shortcut
-      if (combo === sc.setDueDate) {
-        e.preventDefault();
-        (document.getElementById("dueInput") as HTMLInputElement)?.focus();
-        return;
-      }
-      
-      // Handle delete shortcut (only in edit mode)
-      if (combo === sc.deleteTask && isEdit && task) {
-        e.preventDefault();
-        onDelete(task.id);
-        onClose();
-        return;
-      }
-    };
-    
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [title, description, priority, dueDate, labels, subtasks, columnId, state.shortcuts, isEdit, task, onClose, onDelete, handleSave]);
-
-  const addSubtaskFromInput = () => {
-    const v = newSubtask.trim();
-    if (!v) return;
-    setSubtasks((arr) => [...arr, { id: uid(), title: v, done: false }]);
-    setNewSubtask("");
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 10 }}
-        className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border ${theme.border} ${theme.surface} p-3 sm:p-4`}
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <h3 className="text-base font-semibold">{isEdit ? "Edit task" : "New task"}</h3>
-          {isEdit && (
-            <span className={`ml-2 text-xs ${theme.muted}`}>
-              Updated {new Date(task.updatedAt).toLocaleString()}
-            </span>
-          )}
-          <button type="button" onClick={onClose} className={`ml-auto p-2 rounded-xl ${theme.subtle}`}>
-            ✕
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="xl:col-span-2 space-y-4">
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Task title</label>
-              <input
-                autoFocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter task title..."
-                className={`w-full rounded-2xl ${theme.input} px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
-              />
-            </div>
-            
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your task..."
-                rows={4}
-                className={`w-full rounded-2xl ${theme.input} px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none`}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Subtasks</label>
-              <div className="space-y-2">
-                {/* Existing subtasks */}
-                {subtasks.map((s: any, i: number) => (
-                  <label key={s.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={s.done}
-                      onChange={(e) =>
-                        setSubtasks((arr) =>
-                          arr.map((it: any, idx: number) => (idx === i ? { ...it, done: e.target.checked } : it))
-                        )
-                      }
-                      className="rounded"
-                    />
-                    <input
-                      value={s.title}
-                      onChange={(e) =>
-                        setSubtasks((arr) =>
-                          arr.map((it: any, idx: number) => (idx === i ? { ...it, title: e.target.value } : it))
-                        )
-                      }
-                      className={`flex-1 rounded-xl ${theme.input} px-2.5 py-1.5 text-sm`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setSubtasks((arr) => arr.filter((_: any, idx: number) => idx !== i))}
-                      className={`p-1 rounded-xl ${theme.subtle}`}
-                      title="Remove"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </label>
-                ))}
-
-                {/* Always-visible add field */}
-                <div className="flex items-center gap-2">
-                  <input
-                    value={newSubtask}
-                    onChange={(e) => setNewSubtask(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addSubtaskFromInput();
-                      }
-                    }}
-                    placeholder="Add subtask and press Enter"
-                    className={`flex-1 rounded-xl ${theme.input} px-2.5 py-1.5 text-sm`}
-                  />
-                  <button
-                    type="button"
-                    onClick={addSubtaskFromInput}
-                    className="px-2.5 py-1.5 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Column</label>
-              <CustomDropdown
-                value={columnId}
-                onChange={setColumnId}
-                options={state.columns.map((c: any) => ({ value: c.id, label: c.title }))}
-                className="w-full"
-                theme={theme}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Priority</label>
-              <CustomDropdown
-                value={priority}
-                onChange={setPriority}
-                options={PRIORITIES.map((p) => ({ value: p, label: p }))}
-                className="w-full"
-                theme={theme}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Due date</label>
-              <CustomDatePicker
-                value={dueDate}
-                onChange={setDueDate}
-                className="w-full"
-                theme={theme}
-                compact={true}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-xs ${theme.muted} mb-2`}>Labels</label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {allLabels.map((l: string) => {
-                  const active = labels.includes(l);
-                  return (
-                    <button
-                      key={l}
-                      type="button"
-                      onClick={() => setLabels((arr) => (active ? arr.filter((x) => x !== l) : [...arr, l]))}
-                      className={`px-2.5 py-1 rounded-xl text-xs border ${theme.border} transition-colors ${
-                        active ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                      }`}
-                    >
-                      #{l}
-                    </button>
-                  );
-                })}
-              </div>
-              <input
-                placeholder="Type new label and press Enter"
-                onKeyDown={(e) => {
-                  const v = (e.currentTarget as HTMLInputElement).value.trim();
-                  if (e.key === "Enter" && v) {
-                    setLabels((arr) => Array.from(new Set([...arr, v])));
-                    (e.currentTarget as HTMLInputElement).value = "";
-                  }
-                }}
-                className={`w-full rounded-2xl ${theme.input} px-2.5 py-2 text-sm`}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-          {isEdit && (
-            <button
-              type="button"
-              onClick={() => {
-                onDelete(task.id);
-                onClose();
-              }}
-              className="px-4 py-2.5 rounded-xl text-sm border border-rose-600 bg-rose-500/15 hover:bg-rose-500/25 transition-colors sm:w-auto"
-            >
-              Delete
-            </button>
-          )}
-          <div className="sm:ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm border ${theme.border} ${theme.subtle} transition-colors`}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm border border-emerald-600 bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors"
-            >
-              {isEdit ? "Save" : "Create"}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
 
 function SettingsModal({ onClose, onToggleTheme, isDark, onExport, onImport, shortcuts, onChangeShortcut, theme }: any) {
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -1861,7 +875,6 @@ function SettingsModal({ onClose, onToggleTheme, isDark, onExport, onImport, sho
     { key: "moveTaskUp", label: "Move task within column ↑" },
     { key: "moveTaskDown", label: "Move task within column ↓" },
     { key: "moveTaskLeft", label: "Move task across columns ←" },
-    { key: "moveTaskRight", label: "Move task across columns →" },
     { key: "deleteTask", label: "Delete task" },
     { key: "completeTask", label: "Mark completed" },
     { key: "priority1", label: "Set priority Urgent" },
@@ -2041,4 +1054,5 @@ function DevTests() {
     }
   }, []);
   return null;
+  }
 }

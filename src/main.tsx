@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import './index.css'
-import App from './App'
+import './styles/index.css'
+import App from './pages/App'
 // If you placed AuthProvider at src/contexts/AuthProvider.tsx (from the auth kit), use this relative import:
 import { AuthProvider } from './contexts/AuthProvider'
 
