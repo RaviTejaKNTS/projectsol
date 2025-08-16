@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   Settings,
   ChevronDown,
-  Sun,
-  Moon,
   Leaf,
   Search,
   Filter,
-  Upload,
-  Download,
+  X,
 } from "lucide-react";
 import { ProfileButton } from '../components/ProfileButton';
 import { useCloudState } from '../hooks/useCloudState';
@@ -20,6 +17,7 @@ import { InlineEmailSignIn } from "../components/auth/InlineEmailSignIn";
 import { SaveStatusBadge } from "../components/common/SaveStatusBadge";
 import { Column } from "../components/tasks/Column";
 import { TaskModal } from "../components/tasks/TaskModal";
+import { SettingsModal } from "../components/settings/SettingsModal";
 import {
   uid,
   PRIORITIES,
@@ -37,6 +35,46 @@ import {
 
 
 
+
+
+const ActiveFilters = ({ state, setState }: any) => {
+  const { filters } = state;
+  const { priorities, labels, due, text } = filters;
+
+  const removePriority = (p: string) => {
+    setState((s: any) => ({ ...s, filters: { ...s.filters, priorities: s.filters.priorities.filter((q: string) => q !== p) } }));
+  };
+
+  const removeLabel = (l: string) => {
+    setState((s: any) => ({ ...s, filters: { ...s.filters, labels: s.filters.labels.filter((q: string) => q !== l) } }));
+  };
+
+  const removeDue = () => {
+    setState((s: any) => ({ ...s, filters: { ...s.filters, due: "all" } }));
+  };
+
+  const removeText = () => {
+    setState((s: any) => ({ ...s, filters: { ...s.filters, text: "" } }));
+  };
+
+  const FilterTag = ({ children, onRemove }: any) => (
+    <div className={`group relative inline-flex items-center gap-1.5 rounded-lg pl-2.5 pr-2 py-1 text-xs border transition-colors bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30`}>
+      {children}
+      <button type="button" onClick={onRemove} className={`opacity-60 hover:opacity-100`}>
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {text && <FilterTag onRemove={removeText}>Search: "{text}"</FilterTag>}
+      {priorities.map((p: string) => <FilterTag key={p} onRemove={() => removePriority(p)}>{p} priority</FilterTag>)}
+      {labels.map((l: string) => <FilterTag key={l} onRemove={() => removeLabel(l)}>#{l}</FilterTag>)}
+      {due !== 'all' && <FilterTag onRemove={removeDue}>Due: {due}</FilterTag>}
+    </div>
+  );
+};
 
 
 // ------------------------------------------------------------
@@ -60,6 +98,8 @@ export default function TasksMintApp() {
   });
   const { user, loading, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth();
   const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, STORAGE_KEY);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
 
   // Persist state to localStorage
   useEffect(() => {
@@ -598,6 +638,24 @@ export default function TasksMintApp() {
     }
   }, [state.selectedTaskId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        state.showFilters &&
+        filterButtonRef.current &&
+        !filterButtonRef.current.contains(event.target as Node) &&
+        filterDropdownRef.current &&
+        !filterDropdownRef.current.contains(event.target as Node)
+      ) {
+        setState((s: any) => ({ ...s, showFilters: false }));
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [state.showFilters, setState]);
+
   return (
     <div className={`min-h-screen w-full ${bg} overflow-x-hidden`}>
       {/* Top bar */}
@@ -629,6 +687,7 @@ export default function TasksMintApp() {
             <div className="hidden lg:flex items-center gap-2">
               <div className="relative">
                 <button
+                  ref={filterButtonRef}
                   type="button"
                   onClick={() => setState((s: any) => ({ ...s, showFilters: !s.showFilters }))}
                   className={`inline-flex items-center gap-2 rounded-2xl border ${border} ${surface} px-3 py-2 text-sm ${subtle} min-w-[80px] justify-center`}
@@ -637,7 +696,7 @@ export default function TasksMintApp() {
                   <ChevronDown className="h-4 w-4 opacity-80" />
                 </button>
                 {state.showFilters && (
-                  <div className={`absolute right-0 mt-2 w-[280px] lg:w-[320px] rounded-2xl border ${border} ${surface} p-3 shadow-xl z-50`}>
+                  <div ref={filterDropdownRef} className={`absolute right-0 mt-2 w-[280px] lg:w-[320px] rounded-2xl border ${border} ${surface} p-3 shadow-xl z-50`}>
                     <div className="space-y-3">
                       <div>
                         <div className={`text-xs uppercase ${muted} mb-1`}>Priorities</div>
@@ -653,8 +712,8 @@ export default function TasksMintApp() {
                                   return { ...s, filters: { ...s.filters, priorities: next } };
                                 })
                               }
-                              className={`px-2.5 py-1 rounded-xl text-xs border ${surface} ${border} ${subtle}`}
-                            >
+                              className={`px-2.5 py-1 rounded-xl text-xs border transition-colors ${state.filters.priorities.includes(p) ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : `${surface} ${border} ${subtle}`}`}>
+
                               {p}
                             </button>
                           ))}
@@ -675,8 +734,8 @@ export default function TasksMintApp() {
                                   return { ...s, filters: { ...s.filters, labels: next } };
                                 })
                               }
-                              className={`px-2.5 py-1 rounded-xl text-xs border ${surface} ${border} ${subtle}`}
-                            >
+                              className={`px-2.5 py-1 rounded-xl text-xs border transition-colors ${state.filters.labels.includes(l) ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : `${surface} ${border} ${subtle}`}`}>
+
                               #{l}
                             </button>
                           ))}
@@ -691,8 +750,8 @@ export default function TasksMintApp() {
                               type="button"
                               key={k}
                               onClick={() => setState((s: any) => ({ ...s, filters: { ...s.filters, due: k } }))}
-                              className={`px-2.5 py-1 rounded-xl text-xs border ${surface} ${border} ${subtle}`}
-                            >
+                              className={`px-2.5 py-1 rounded-xl text-xs border transition-colors ${state.filters.due === k ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : `${surface} ${border} ${subtle}`}`}>
+
                               {k}
                             </button>
                           ))}
@@ -703,18 +762,18 @@ export default function TasksMintApp() {
                 )}
               </div>
 
-              <div className="hidden lg:flex items-center gap-2">
-                <span className={`text-xs ${muted} min-w-[32px]`}>Sort</span>
+              <div className="hidden lg:flex items-center">
                 <CustomDropdown
                   value={state.sortMode}
                   onChange={(value) => setState((s: any) => ({ ...s, sortMode: value }))}
+                  prefix="Sort by: "
                   options={[
                     { value: "manual", label: "Manual" },
                     { value: "due", label: "Due date" },
                     { value: "priority", label: "Priority" },
                     { value: "created", label: "Newest" }
                   ]}
-                  className="w-32"
+                  className="w-40"
                   theme={{ surface, border, muted }}
                 />
               </div>
@@ -776,14 +835,15 @@ export default function TasksMintApp() {
 
         {/* Filters notice */}
         {filtersActive ? (
-          <div className="mb-2 sm:mb-3">
+          <div className="mb-2 sm:mb-3 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => setState((s: any) => ({ ...s, filters: { text: "", priorities: [], labels: [], due: "all" } }))}
               className="text-xs px-2 py-1 rounded-lg border border-amber-500/60 bg-amber-500/10"
             >
-              Clear active filters
+              Clear all filters
             </button>
+            <ActiveFilters state={state} setState={setState} />
           </div>
         ) : null}
 
@@ -854,20 +914,22 @@ export default function TasksMintApp() {
       )}
 
       {/* Settings Modal */}
-      {state.showSettings && (
-        <SettingsModal
-          onClose={() => setState((s: any) => ({ ...s, showSettings: false }))}
-          onToggleTheme={toggleTheme}
-          isDark={isDark}
-          onExport={exportJSON}
-          onImport={importJSON}
-          shortcuts={state.shortcuts}
-          onChangeShortcut={(k: string, v: string) =>
-            setState((s: any) => ({ ...s, shortcuts: { ...s.shortcuts, [k]: v } }))
-          }
-          theme={{ surface, border, input, subtle }}
-        />
-      )}
+      <AnimatePresence>
+        {state.showSettings && (
+          <SettingsModal
+            onClose={() => setState((s: any) => ({ ...s, showSettings: false }))}
+            onToggleTheme={toggleTheme}
+            isDark={isDark}
+            onExport={exportJSON}
+            onImport={importJSON}
+            shortcuts={state.shortcuts}
+            onChangeShortcut={(k: string, v: string) =>
+              setState((s: any) => ({ ...s, shortcuts: { ...s.shortcuts, [k]: v } }))
+            }
+            theme={{ surface, border, input, subtle }}
+          />
+        )}
+      </AnimatePresence>
 
 
       {/* Dev Tests */}
@@ -875,113 +937,6 @@ export default function TasksMintApp() {
     </div>
   );
 
-function SettingsModal({ onClose, onToggleTheme, isDark, onExport, onImport, shortcuts, onChangeShortcut, theme }: any) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
-  const shortcutItems = [
-    { key: "newTask", label: "New task" },
-    { key: "newColumn", label: "New list/column" },
-    { key: "search", label: "Focus search" },
-    { key: "toggleFilters", label: "Toggle filters panel" },
-    { key: "moveTaskUp", label: "Move task within column ↑" },
-    { key: "moveTaskDown", label: "Move task within column ↓" },
-    { key: "moveTaskLeft", label: "Move task across columns ←" },
-    { key: "deleteTask", label: "Delete task" },
-    { key: "completeTask", label: "Mark completed" },
-    { key: "priority1", label: "Set priority Urgent" },
-    { key: "priority2", label: "Set priority High" },
-    { key: "priority3", label: "Set priority Medium" },
-    { key: "priority4", label: "Set priority Low" },
-    { key: "setDueDate", label: "Set due date" },
-  ];
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.98 }}
-        className={`relative w-full max-w-md rounded-3xl border ${theme.border} ${theme.surface} p-3 sm:p-4`}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-base font-semibold">Settings</h3>
-          <button type="button" onClick={onClose} className={`ml-auto p-2 rounded-xl ${theme.subtle}`}>
-            ✕
-          </button>
-        </div>
-        <div className="space-y-3 text-sm max-h-[70vh] overflow-y-auto pr-1">
-          <div className="flex items-center justify-between">
-            <span>Theme</span>
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className={`inline-flex items-center gap-1 sm:gap-2 rounded-xl border ${theme.border} px-2 sm:px-3 py-2 ${theme.subtle} text-xs sm:text-sm`}
-            >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} {isDark ? "Light" : "Dark"} mode
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span>Import / Export</span>
-            <div className="flex items-center gap-1 sm:gap-2">
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className={`inline-flex items-center gap-1 sm:gap-2 rounded-xl border ${theme.border} px-2 sm:px-3 py-2 ${theme.subtle} text-xs sm:text-sm`}
-              >
-                <Upload className="h-4 w-4" /> Import
-              </button>
-              <button
-                type="button"
-                onClick={onExport}
-                className={`inline-flex items-center gap-1 sm:gap-2 rounded-xl border ${theme.border} px-2 sm:px-3 py-2 ${theme.subtle} text-xs sm:text-sm`}
-              >
-                <Download className="h-4 w-4" /> Export
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1">Keyboard shortcuts</div>
-            <div className="space-y-2">
-              {shortcutItems.map((it) => (
-                <div key={it.key} className="flex items-center justify-between gap-2">
-                  <span>{it.label}</span>
-                  <ShortcutInput
-                    value={shortcuts[it.key]}
-                    onChange={(v: string) => onChangeShortcut(it.key, v)}
-                    theme={theme}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function ShortcutInput({ value, onChange, theme }: any) {
-  return (
-    <input
-      readOnly
-      value={value}
-      onKeyDown={(e) => {
-        e.preventDefault();
-        const combo = serializeCombo(e.nativeEvent as any);
-        onChange(combo);
-      }}
-      className={`w-32 text-xs px-2 py-1 rounded-xl border ${theme.border} ${theme.surface}`}
-    />
-  );
-}
 
 function AddColumnCard({ adding, tempTitle, onChangeTitle, onStart, onAdd, onCancel, theme }: any) {
   return (

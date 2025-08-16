@@ -9,7 +9,8 @@ export function CustomDropdown({
   placeholder = "Select option",
   className = "",
   theme = { surface: "bg-white dark:bg-zinc-900", border: "border-zinc-200 dark:border-zinc-800", muted: "text-zinc-500 dark:text-zinc-400" },
-  trigger
+  trigger,
+  prefix
 }: {
   value?: string;
   onChange: (value: string) => void;
@@ -18,6 +19,7 @@ export function CustomDropdown({
   className?: string;
   theme?: any;
   trigger?: React.ReactNode;
+  prefix?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,7 @@ export function CustomDropdown({
         ) : (
           <>
             <span className={selectedOption ? "text-zinc-900 dark:text-zinc-100" : theme.muted}>
+              {prefix && <span className={theme.muted}>{prefix}</span>}
               {selectedOption ? selectedOption.label : placeholder}
             </span>
             <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${theme.muted}`} />
