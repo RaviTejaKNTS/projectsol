@@ -1,13 +1,4 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { pointerWithin } from "@dnd-kit/core";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -21,14 +12,12 @@ import {
   Upload,
   Download,
 } from "lucide-react";
-import confetti from "canvas-confetti";
 import { ProfileButton } from '../components/ProfileButton';
 import { useCloudState } from '../hooks/useCloudState';
 import { useAuth } from '../contexts/AuthProvider';
 import { CustomDropdown } from "../components/common/CustomDropdown";
 import { InlineEmailSignIn } from "../components/auth/InlineEmailSignIn";
 import { SaveStatusBadge } from "../components/common/SaveStatusBadge";
-import { TaskCard } from "../components/tasks/TaskCard";
 import { Column } from "../components/tasks/Column";
 import { TaskModal } from "../components/tasks/TaskModal";
 import {
@@ -36,7 +25,7 @@ import {
   PRIORITIES,
   priorityColor,
   prettyDate,
-  isOverdue,
+  getDueDateStatus,
   DEFAULT_SHORTCUTS,
   serializeCombo,
   reorderWithin,
@@ -60,9 +49,26 @@ import {
 
 
 export default function TasksMintApp() {
-  const [state, setState] = useState<any>(() => defaultState());
-  const { user, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth();
+  const [state, setState] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return defaultState();
+  });
+  const { user, loading, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth();
   const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, STORAGE_KEY);
+
+  // Persist state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("Failed to save state to localStorage", e);
+    }
+  }, [state]);
 
 // Theme only (cloud-only mode)
   useEffect(() => {
@@ -70,11 +76,6 @@ export default function TasksMintApp() {
   }, [state.theme]);
 
 
-  // DnD sensors — Trello-like: click starts drag when you move > 6px
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor)
-  );
 
   // UI helpers
   const isDark = state.theme === "dark";
@@ -140,77 +141,76 @@ export default function TasksMintApp() {
     });
   };
 
-  // DnD helpers
-  const findContainer = (id: string) => {
-    if (state.columns.some((c: any) => c.id === id)) return id; // it's a column droppable
-    return state.columns.find((c: any) => c.taskIds.includes(id))?.id; // column containing task
-  };
 
-  const onDragStart = (event: any) => setState((s: any) => ({ ...s, activeId: event.active.id }));
-
-  const moveBetweenPreview = (activeId: string, overId: string) => {
-    const activeContainer = findContainer(activeId);
-    const overContainer = findContainer(overId);
-    if (!activeContainer || !overContainer) return;
-
-    const fromCol = state.columns.find((c: any) => c.id === activeContainer);
-    const toCol = state.columns.find((c: any) => c.id === overContainer);
-    if (!fromCol || !toCol) return;
-    if (fromCol.id === toCol.id) return; // handled by sortable internally
-
-    const { from, to } = moveItemBetween(fromCol.taskIds, toCol.taskIds, activeId, overId);
-
-    const newColumns = state.columns.map((c: any) =>
-      c.id === fromCol.id ? { ...c, taskIds: from } : c.id === toCol.id ? { ...c, taskIds: to } : c
-    );
-
-    setState((s: any) => ({ ...s, columns: newColumns }));
-  };
-
-  const onDragOver = (event: any) => {
-    const { active, over } = event;
-    if (!over) return;
-    moveBetweenPreview(active.id, over.id);
-  };
-
-  const onDragEnd = (event: any) => {
-    const { active, over } = event;
-    setState((s: any) => ({ ...s, activeId: null }));
-    if (!over) return;
-
-    const activeContainer = findContainer(active.id);
-    const overContainer = findContainer(over.id);
-    if (!activeContainer || !overContainer) return;
-
-    if (activeContainer === overContainer) {
-      const col = state.columns.find((c: any) => c.id === activeContainer);
-      const newIds = reorderWithin(col.taskIds, active.id, over.id);
-      const newColumns = state.columns.map((c: any) => (c.id === col.id ? { ...c, taskIds: newIds } : c));
-      setState((s: any) => ({ ...s, columns: newColumns }));
-      return;
-    }
-
-    // finalize cross-column (also set updated time + confetti)
-    const toCol = state.columns.find((c: any) => c.id === overContainer);
-    const fromCol = state.columns.find((c: any) => c.id === activeContainer);
-    const moved = moveItemBetween(fromCol.taskIds, toCol.taskIds, active.id, over.id);
-    let newColumns = state.columns.map((c: any) =>
-      c.id === fromCol.id ? { ...c, taskIds: moved.from } : c.id === toCol.id ? { ...c, taskIds: moved.to } : c
-    );
-    if (toCol?.id === "done") {
-      try {
-        confetti({ particleCount: 110, spread: 70, origin: { y: 0.15 } });
-      } catch {}
-    }
+  const moveTask = (taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
     setState((s: any) => {
-      const tasks = { ...s.tasks } as any;
-      if (tasks[active.id]) tasks[active.id].updatedAt = Date.now();
-      return { ...s, tasks, columns: newColumns };
+      // Handle same column reordering
+      if (fromColumnId === toColumnId) {
+        const newColumns = s.columns.map((col: any) => {
+          if (col.id === fromColumnId) {
+            const taskIds = [...col.taskIds];
+            const fromIndex = taskIds.indexOf(taskId);
+            if (fromIndex === -1) return col;
+            
+            // Remove from original position
+            taskIds.splice(fromIndex, 1);
+            
+            // Insert at new position
+            const toIndex = position !== undefined ? Math.min(position, taskIds.length) : taskIds.length;
+            taskIds.splice(toIndex, 0, taskId);
+            
+            return { ...col, taskIds };
+          }
+          return col;
+        });
+        return { ...s, columns: newColumns };
+      }
+      
+      // Handle cross-column moves
+      const newColumns = s.columns.map((col: any) => {
+        if (col.id === fromColumnId) {
+          return { ...col, taskIds: col.taskIds.filter((id: string) => id !== taskId) };
+        }
+        if (col.id === toColumnId) {
+          const newTaskIds = [...col.taskIds];
+          const insertIndex = position !== undefined ? Math.min(position, newTaskIds.length) : newTaskIds.length;
+          newTaskIds.splice(insertIndex, 0, taskId);
+          return { ...col, taskIds: newTaskIds };
+        }
+        return col;
+      });
+      
+      return { ...s, columns: newColumns };
     });
   };
 
-  const createOrUpdateTask = (payload: any, columnId: string, taskId: string | null = null) => {
+  const moveColumn = (fromId: string, toId: string) => {
     setState((s: any) => {
+      const fromIndex = s.columns.findIndex((c: any) => c.id === fromId);
+      const toIndex = s.columns.findIndex((c: any) => c.id === toId);
+
+      if (fromIndex === -1 || toIndex === -1) return s;
+
+      const newColumns = [...s.columns];
+      const [movedItem] = newColumns.splice(fromIndex, 1);
+      newColumns.splice(toIndex, 0, movedItem);
+
+      return { ...s, columns: newColumns };
+    });
+  };
+
+  const createOrUpdateTask = (payload: any, columnId: string | null, taskId: string | null = null, metadataOnly = false) => {
+    setState((s: any) => {
+      if (metadataOnly) {
+        const newLabels = payload.labels || [];
+        const existingLabels = new Set(s.labels || []);
+        const uniqueNewLabels = newLabels.filter((label: string) => !existingLabels.has(label));
+        if (uniqueNewLabels.length > 0) {
+          return { ...s, labels: [...(s.labels || []), ...uniqueNewLabels] };
+        }
+        return s; // No changes
+      }
+
       const id = taskId || uid();
       const newTask = {
         id,
@@ -226,10 +226,10 @@ export default function TasksMintApp() {
       const tasks = { ...s.tasks, [id]: newTask } as any;
       let columns = s.columns;
       
-      if (!taskId) {
+      if (!taskId && columnId) {
         // New task: add to the specified column
         columns = s.columns.map((c: any) => (c.id === columnId ? { ...c, taskIds: [id, ...c.taskIds] } : c));
-      } else {
+      } else if (taskId && columnId) {
         // Existing task: handle column change
         const oldColumnId = s.columns.find((c: any) => c.taskIds.includes(taskId))?.id;
         if (oldColumnId && oldColumnId !== columnId) {
@@ -254,6 +254,25 @@ export default function TasksMintApp() {
       }
 
       return { ...s, tasks, columns, labels: updatedGlobalLabels };
+    });
+  };
+
+  const deleteLabel = (labelToDelete: string) => {
+    if (!confirm(`Delete "${labelToDelete}" label everywhere?`)) return;
+    setState((s: any) => {
+      const newLabels = s.labels.filter((l: string) => l !== labelToDelete);
+      const newTasks = { ...s.tasks };
+      Object.keys(newTasks).forEach(taskId => {
+        const task = newTasks[taskId];
+        if (task.labels?.includes(labelToDelete)) {
+          newTasks[taskId] = {
+            ...task,
+            labels: task.labels.filter((l: string) => l !== labelToDelete),
+            updatedAt: Date.now(),
+          };
+        }
+      });
+      return { ...s, labels: newLabels, tasks: newTasks };
     });
   };
 
@@ -308,7 +327,7 @@ export default function TasksMintApp() {
       if (text && !(`${t.title} ${t.description}`.toLowerCase().includes(text.toLowerCase()))) return false;
       if (priorities.length && !priorities.includes(t.priority)) return false;
       if (labels.length && !labels.every((l: string) => t.labels.includes(l))) return false;
-      if (due === "overdue" && !isOverdue(t.dueDate)) return false;
+      if (due === "overdue" && getDueDateStatus(t.dueDate) !== 'past') return false;
       if (due === "week" && (!t.dueDate || new Date(t.dueDate) > weekAhead)) return false;
       return true;
     });
@@ -719,7 +738,9 @@ export default function TasksMintApp() {
       {/* Board */}
       <div className="w-full h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] px-2 sm:px-4 lg:px-6 py-3 sm:py-4 overflow-hidden">
 {/* AUTH_OVERLAY_START */}
-{!user && (
+{loading ? (
+        <div className="absolute inset-0 z-[120] flex items-center justify-center" />
+      ) : !user && (
   <div className="absolute inset-0 z-[120] bg-white/85 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center">
     <div className="w-full max-w-sm rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 p-5 shadow-2xl">
       <div className="mb-3 text-center">
@@ -766,55 +787,41 @@ export default function TasksMintApp() {
           </div>
         ) : null}
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={pointerWithin}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-          onDragCancel={() => setState((s: any) => ({ ...s, activeId: null }))}
-        >
-          <div className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20">
-            {state.columns.map((col: any) => (
-              <Column
-                key={col.id}
-                col={col}
-                tasks={state.tasks}
-                ids={sortTasks(filteredTaskIds(col))}
-                theme={{ surface, surfaceAlt, border, subtle, muted }}
-                onOpenNew={() => openNewTask(col.id)}
-                onOpenEdit={openEditTask}
-                onDeleteColumn={deleteColumn}
-                onStartRename={() => startRenameColumn(col.id, col.title)}
-                onCancelRename={cancelRenameColumn}
-                renaming={state.renamingColumnId === col.id}
-                tempTitle={state.tempTitle}
-                setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-                onCommitRename={() => commitRenameColumn(col.id)}
-                selectedTaskId={state.selectedTaskId}
-                setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
-              />
-            ))}
-
-            <AddColumnCard
-              adding={state.addingColumn}
+        <div className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20">
+          {state.columns.map((col: any) => (
+            <Column
+              key={col.id}
+              col={col}
+              tasks={state.tasks}
+              ids={sortTasks(filteredTaskIds(col))}
+              theme={{ surface, surfaceAlt, border, subtle, muted }}
+              onOpenNew={() => openNewTask(col.id)}
+              onOpenEdit={openEditTask}
+              onDeleteColumn={deleteColumn}
+              onStartRename={() => startRenameColumn(col.id, col.title)}
+              onCancelRename={cancelRenameColumn}
+              renaming={state.renamingColumnId === col.id}
               tempTitle={state.tempTitle}
-              onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-              onStart={startAddColumn}
-              onAdd={commitAddColumn}
-              onCancel={cancelAddColumn}
-              theme={{ surfaceAlt, border, input, subtle, muted }}
+              setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+              onCommitRename={() => commitRenameColumn(col.id)}
+              selectedTaskId={state.selectedTaskId}
+              setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
+              onMoveTask={moveTask}
+              onMoveColumn={moveColumn}
             />
-          </div>
+          ))}
 
-          <DragOverlay>
-            {state.activeId && state.tasks[state.activeId] ? (
-              <div className={`rounded-2xl border ${border} ${surface} p-3 shadow-lg pointer-events-none`}>
-                <TaskCard id={state.activeId} task={state.tasks[state.activeId]} theme={{ border, surface, muted, subtle: '' }} onEdit={() => {}} onSelect={() => {}} selected={false} />
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+          <AddColumnCard
+            adding={state.addingColumn}
+            tempTitle={state.tempTitle}
+            onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+            onStart={startAddColumn}
+            onAdd={commitAddColumn}
+            onCancel={cancelAddColumn}
+            theme={{ surfaceAlt, border, input, subtle, muted }}
+          />
+        </div>
+
 
         {/* FAB on all viewports */}
         <button
@@ -831,14 +838,17 @@ export default function TasksMintApp() {
       {state.showTaskModal && (
         <TaskModal
           onClose={() => setState((s: any) => ({ ...s, showTaskModal: false }))}
-          onSave={(payload: any, columnId: string, taskId?: string) => {
-            createOrUpdateTask(payload, columnId, taskId || null);
-            setState((s: any) => ({ ...s, showTaskModal: false }));
+          onSave={(payload: any, columnId: string | null, taskId?: string, metadataOnly?: boolean) => {
+            createOrUpdateTask(payload, columnId, taskId || null, metadataOnly);
+            if (!metadataOnly) {
+              setState((s: any) => ({ ...s, showTaskModal: false }));
+            }
           }}
           state={state}
           editingTaskId={state.editingTaskId}
           allLabels={allLabels}
           onDelete={deleteTask}
+          onDeleteLabel={deleteLabel}
           theme={{ surface, border, input, muted, subtle }}
         />
       )}
@@ -1028,9 +1038,9 @@ function DevTests() {
       assert(prettyDate("") === "No due", "prettyDate handles empty");
       assert(prettyDate("not-a-date") === "No due", "prettyDate handles invalid");
 
-      // isOverdue
+      // getDueDateStatus
       const past = new Date(Date.now() - 86400000).toISOString();
-      assert(Boolean(isOverdue(past)) === true, "isOverdue true for past date");
+      assert(getDueDateStatus(past) === 'past', "getDueDateStatus handles past date");
 
       // priorityColor mapping
       const pc = priorityColor("High");

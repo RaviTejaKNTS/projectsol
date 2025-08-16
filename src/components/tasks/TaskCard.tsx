@@ -1,91 +1,171 @@
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
-import { GripVertical, AlertTriangle, Calendar, CheckSquare, Tag } from 'lucide-react';
-import { priorityColor, prettyDate, isOverdue } from '../../utils/helpers';
+import { AlertTriangle, Calendar, Tag } from 'lucide-react';
+import { prettyDate, getDueDateStatus } from '../../utils/helpers';
+import { useEffect, useRef, useState } from 'react';
+import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
+import { DropIndicator } from './DropIndicator';
 
-function CardMeta({ task, theme }: any) {
-  if (!task.priority && !task.dueDate && !task.labels?.length && !task.subtasks?.length) return null;
-  const subtaskProgress = task.subtasks?.length ? `${task.subtasks.filter((st: any) => st.completed).length}/${task.subtasks.length} done` : null;
+function CardMeta({ task }: any) {
+  const subtaskProgress = task.subtasks?.length ? `${task.subtasks.filter((st: any) => st.completed).length}/${task.subtasks.length}` : null;
+
+  if (!task.priority && !subtaskProgress) return null;
+
+  const colorClasses = {
+    Low: 'text-emerald-600 dark:text-emerald-400',
+    Medium: 'text-sky-600 dark:text-sky-400',
+    High: 'text-amber-600 dark:text-amber-500',
+    Urgent: 'text-rose-600 dark:text-rose-500',
+  };
+
+  const priorityClass = task.priority ? colorClasses[task.priority as keyof typeof colorClasses] : 'text-gray-500 dark:text-gray-400';
+
+  const metaItems = [];
+  if (task.priority) metaItems.push(task.priority);
+  if (subtaskProgress) metaItems.push(`${subtaskProgress} done`);
 
   return (
-    <div className="mt-3 flex items-center flex-wrap gap-x-3 gap-y-1.5 text-xs">
-      {task.priority && (
-        <div className={`inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${priorityColor(task.priority)}`}>
-          <AlertTriangle className="h-3 w-3" />
-          {task.priority}
-        </div>
-      )}
-      {subtaskProgress && (
-        <div className={`flex items-center gap-1.5 ${theme.muted}`}>
-          <CheckSquare className="h-3.5 w-3.5" />
-          {subtaskProgress}
-        </div>
-      )}
-      {task.labels?.map((l: string) => (
-        <div key={l} className={`flex items-center gap-1.5 ${theme.muted}`}>
-          <Tag className="h-3.5 w-3.5" />
-          {l}
-        </div>
-      ))}
-      {task.dueDate && (
-        <div className={`flex items-center gap-1.5 ml-auto ${isOverdue(task.dueDate) ? 'text-red-500' : theme.muted}`}>
-          <Calendar className="h-3.5 w-3.5" />
-          {prettyDate(task.dueDate)}
-        </div>
-      )}
+    <div className={`inline-flex items-center gap-1.5 text-[10px] font-medium ${priorityClass}`}>
+      {task.priority && <AlertTriangle className="h-2.5 w-2.5" />}
+      {metaItems.join(' \u00B7 ')}
+    </div>
+  );
+}
+
+
+function DueDate({ task }: any) {
+  const status = getDueDateStatus(task.dueDate);
+
+  const colorRingClasses = {
+    past: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 ring-rose-500/30',
+    today: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 ring-sky-500/30',
+    future: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-emerald-500/30',
+  };
+
+  const baseClasses = 'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium';
+
+  if (!task.dueDate) {
+    const noDueDateClasses = 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 ring-zinc-500/30';
+    return (
+      <div className={`${baseClasses} ring-1 ring-inset ${noDueDateClasses}`}>
+        <Calendar className="h-3 w-3" />
+        No due
+      </div>
+    );
+  }
+
+  const statusClass = status ? colorRingClasses[status] : 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 ring-zinc-400/30';
+
+  return (
+    <div className={`${baseClasses} ring-1 ring-inset ${statusClass}`}>
+      <Calendar className="h-3 w-3" />
+      {prettyDate(task.dueDate)}
     </div>
   );
 }
 
 function CardItem({ task, theme }: any) {
+  const visibleLabels = task.labels?.slice(0, 3) || [];
+  const hiddenLabelsCount = task.labels?.length > 3 ? task.labels.length - 3 : 0;
+
   return (
     <>
-      <div className="flex items-start gap-2">
-        <div className="text-left flex-1">
+      <div className="flex flex-col items-start gap-1">
+        <CardMeta task={task} />
+        <div className="text-left w-full">
           <div className="font-medium leading-tight">{task.title}</div>
-          {task.description && <div className={`text-xs ${theme.muted} line-clamp-2`}>{task.description}</div>}
-        </div>
-        <div className="flex items-center gap-1">
-          <span className={`p-1 rounded-lg ${theme.subtle}`} title="Drag">
-            <GripVertical className="h-4 w-4" />
-          </span>
+          {task.description && <div className={`text-xs ${theme.muted} line-clamp-2 mt-1`}>{task.description}</div>}
         </div>
       </div>
-      <CardMeta task={task} theme={theme} />
+      <div className="mt-3 flex items-center flex-wrap gap-2">
+        <DueDate task={task} />
+        {visibleLabels.map((label: string) => (
+          <div key={label} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 ring-1 ring-inset ring-zinc-500/30">
+            <Tag className="h-3 w-3" />
+            {label}
+          </div>
+        ))}
+        {hiddenLabelsCount > 0 && (
+          <span className="text-xs font-medium text-zinc-500">
+            +{hiddenLabelsCount}
+          </span>
+        )}
+      </div>
     </>
   );
 }
 
-export function TaskCard({ id, task, onEdit, theme, selected, onSelect }: any) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style = { transform: CSS.Transform.toString(transform), transition } as React.CSSProperties;
+export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index }: any) {
+  const ref = useRef<HTMLDivElement>(null);
+  
+  const [isDraggedOver, setIsDraggedOver] = useState(false);
 
-  const handleCardClick: React.MouseEventHandler = () => {
-    if (!isDragging) {
-      onSelect();
-      onEdit();
-    }
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const cleanupDraggable = draggable({
+      element,
+      getInitialData: () => ({ type: 'task', taskId: id, columnId }),
+      onGenerateDragPreview({ nativeSetDragImage }) {
+        setCustomNativeDragPreview({
+          nativeSetDragImage,
+          getOffset: () => ({ x: 16, y: 16 }),
+          render({ container }) {
+            const preview = element.cloneNode(true) as HTMLElement;
+            preview.style.width = `${element.offsetWidth}px`;
+            preview.style.transform = 'rotate(5deg)';
+            preview.style.opacity = '0.8';
+            container.appendChild(preview);
+          },
+        });
+      },
+    });
+
+    const cleanupDropTarget = dropTargetForElements({
+      getData: () => ({ type: 'task-card', taskId: id }),
+      element,
+      canDrop: (args) => args.source.data.type === 'task' && args.source.data.taskId !== id,
+      onDragEnter: () => setIsDraggedOver(true),
+      onDragLeave: () => setIsDraggedOver(false),
+      onDrop: (args) => {
+        const fromTaskId = args.source.data.taskId as string;
+        const fromColumnId = args.source.data.columnId as string;
+        onMoveTask(fromTaskId, fromColumnId, columnId, index);
+        setIsDraggedOver(false);
+      },
+    });
+
+    return () => {
+      cleanupDraggable();
+      cleanupDropTarget();
+    };
+  }, [id, columnId, onMoveTask, index]);
+
+  const handleCardClick = () => {
+    onEdit();
   };
 
   return (
-    <motion.div
-      layout
-      ref={setNodeRef}
-      style={style}
-      onClick={handleCardClick}
-      onFocus={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") handleCardClick(e as any);
-      }}
-      {...attributes}
-      {...listeners}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      id={`task-${id}`}
-      className={`relative rounded-2xl border ${theme.border} ${theme.surface} p-3 shadow-sm select-none ${isDragging ? "ring-2 ring-emerald-400/40" : selected ? "ring-2 ring-emerald-500" : ""}`}>
-      <CardItem task={task} theme={theme} />
-    </motion.div>
+    <>
+      {isDraggedOver && <DropIndicator />}
+      <motion.div
+        ref={ref}
+        tabIndex={0}
+        onClick={handleCardClick}
+        onFocus={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleCardClick();
+        }}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98 }}
+        id={`task-${id}`}
+        className={`relative rounded-2xl border ${theme.border} ${theme.surface} p-4 shadow-sm select-none transition-all duration-150 cursor-grab active:cursor-grabbing ${
+          selected ? "ring-2 ring-emerald-500" : "hover:shadow-md"
+        }`}>
+        <CardItem task={task} theme={theme} />
+      </motion.div>
+    </>
   );
 }

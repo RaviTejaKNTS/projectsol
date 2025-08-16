@@ -67,8 +67,12 @@ export function CustomDatePicker({
   };
 
   const handleDateSelect = (day: number) => {
-    const selectedDate = new Date(currentDate.year, currentDate.month, day);
-    onChange(selectedDate.toISOString().split('T')[0]);
+    // Create date string directly to avoid timezone issues
+    const year = currentDate.year;
+    const month = String(currentDate.month + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    const dateString = `${year}-${month}-${dayStr}`;
+    onChange(dateString);
     setIsOpen(false);
   };
 
@@ -109,7 +113,7 @@ export function CustomDatePicker({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between rounded-xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left ${theme.subtle} transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40`}
+        className={`w-full flex items-center justify-between rounded-xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left ${theme.subtle} transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
       >
         <span className={value ? "" : theme.muted}>
           {formatDate(value)}
@@ -165,22 +169,24 @@ export function CustomDatePicker({
                 const date = new Date(currentDate.year, currentDate.month, day);
                 const isToday = date.toDateString() === today.toDateString();
                 const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
-                const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+                const getDayClassName = () => {
+                  const baseClasses = `${compact ? 'h-6 text-xs' : 'h-8 text-sm'} rounded-md transition-colors`;
+                  if (isToday) {
+                    return `${baseClasses} bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300`;
+                  }
+                  if (isSelected) {
+                    return `${baseClasses} bg-primary text-white`;
+                  }
+                  return `${baseClasses} ${theme.subtle}`;
+                };
                 
                 return (
                   <button
                     key={day}
                     type="button"
                     onClick={() => handleDateSelect(day)}
-                    className={`${compact ? 'h-6 text-xs' : 'h-8 text-sm'} rounded-md transition-colors ${
-                      isSelected
-                        ? 'bg-primary text-white'
-                        : isToday
-                        ? `bg-primary/20 text-primary`
-                        : isPast
-                        ? 'text-zinc-400 dark:text-zinc-500'
-                        : `${theme.subtle}`
-                    }`}
+                    className={getDayClassName()}
                   >
                     {day}
                   </button>

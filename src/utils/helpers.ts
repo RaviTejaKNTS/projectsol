@@ -1,4 +1,4 @@
-import { arrayMove } from "@dnd-kit/sortable";
+// Utilities
 
 // Utilities
 export const uid = () => Math.random().toString(36).slice(2, 10);
@@ -13,11 +13,63 @@ export const priorityColor = (p: string) =>
 
 export const prettyDate = (iso?: string) => {
   if (!iso) return "No due";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "No due";
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const dueDate = new Date(iso);
+  if (Number.isNaN(dueDate.getTime())) return "No due";
+
+  const today = new Date();
+  const isDifferentYear = dueDate.getFullYear() !== today.getFullYear();
+
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+  };
+
+  if (isDifferentYear) {
+    options.year = "numeric";
+  }
+
+  const absoluteDate = dueDate.toLocaleDateString(undefined, options);
+
+  // Create copies for comparison to avoid mutating the original dueDate
+  const dueDateForComparison = new Date(iso);
+  const todayForComparison = new Date();
+
+  // Reset time part for accurate day comparison
+  dueDateForComparison.setHours(0, 0, 0, 0);
+  todayForComparison.setHours(0, 0, 0, 0);
+
+  const diffTime = dueDateForComparison.getTime() - todayForComparison.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+  let relativeTime;
+  if (diffDays === 0) {
+    relativeTime = "Today";
+  } else if (diffDays < 0) {
+    const daysAgo = -diffDays;
+    relativeTime = `${daysAgo} day${daysAgo > 1 ? 's' : ''} ago`;
+  } else {
+    relativeTime = `${diffDays} day${diffDays > 1 ? 's' : ''} to go`;
+  }
+
+  return `${absoluteDate} • ${relativeTime}`;
 };
-export const isOverdue = (iso?: string) => iso && new Date(iso).setHours(23, 59, 59, 999) < Date.now();
+
+export const getDueDateStatus = (iso?: string): 'past' | 'today' | 'future' | null => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  const today = new Date();
+
+  date.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  if (date.getTime() < today.getTime()) {
+    return 'past';
+  }
+  if (date.getTime() === today.getTime()) {
+    return 'today';
+  }
+  return 'future';
+};
 
 export const DEFAULT_SHORTCUTS = {
   newTask: "n",
@@ -53,7 +105,11 @@ export function reorderWithin(ids: string[], activeId: string, overId: string | 
   if (oldIndex === -1) return ids;
   const newIndex = overId ? from.indexOf(overId) : from.length - 1;
   if (newIndex === -1) return ids;
-  return arrayMove(from, oldIndex, newIndex);
+  
+  // Simple array move implementation
+  const item = from.splice(oldIndex, 1)[0];
+  from.splice(newIndex, 0, item);
+  return from;
 }
 export function moveItemBetween(
   fromIds: string[],
@@ -94,8 +150,8 @@ export const defaultState = () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         subtasks: [
-          { id: uid(), title: "Sketch data model", done: true },
-          { id: uid(), title: "Pick libraries", done: false },
+          { id: uid(), title: "Sketch data model", completed: true },
+          { id: uid(), title: "Pick libraries", completed: false },
         ],
       },
       [t2]: {
@@ -108,8 +164,8 @@ export const defaultState = () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         subtasks: [
-          { id: uid(), title: "Render columns", done: true },
-          { id: uid(), title: "Enable dnd", done: false },
+          { id: uid(), title: "Render columns", completed: true },
+          { id: uid(), title: "Enable dnd", completed: false },
         ],
       },
       [t3]: {
@@ -122,8 +178,8 @@ export const defaultState = () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         subtasks: [
-          { id: uid(), title: "Core features", done: true },
-          { id: uid(), title: "Nice-to-haves", done: true },
+          { id: uid(), title: "Core features", completed: true },
+          { id: uid(), title: "Nice-to-haves", completed: true },
         ],
       },
     },

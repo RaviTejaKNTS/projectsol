@@ -55,7 +55,7 @@ export function CustomDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+        className={trigger ? `p-1.5 rounded-lg ${theme.subtle} hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40` : `w-full flex items-center justify-between rounded-2xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
       >
         {trigger ? (
           <>{trigger}</>
@@ -76,14 +76,14 @@ export function CustomDropdown({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-2xl border ${theme.border} ${theme.surface} shadow-lg max-h-60 overflow-auto`}
+            className={`absolute ${trigger ? 'top-full right-0 mt-1 min-w-[120px]' : 'top-full left-0 right-0 mt-1'} z-50 rounded-xl border ${theme.border} ${theme.surface} shadow-xl backdrop-blur-sm max-h-60 overflow-auto`}
           >
             {options.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => handleSelect(option.value)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
+                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors first:rounded-t-xl last:rounded-b-xl ${
                   option.value === value 
                     ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300' 
                     : 'text-zinc-900 dark:text-zinc-100'
