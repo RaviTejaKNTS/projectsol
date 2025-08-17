@@ -105,14 +105,14 @@ export function Column({
         animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
         transition={shouldAnimate ? {
           type: "spring",
-          stiffness: 200,
-          damping: 25,
-          delay: animationIndex * 0.1,
-          duration: 0.4
+          stiffness: 300,
+          damping: 30,
+          delay: animationIndex * 0.05,
+          duration: 0.2
         } : {
           type: "spring",
-          stiffness: 120,
-          damping: 18
+          stiffness: 200,
+          damping: 25
         }}
         className={`snap-start shrink-0 w-80 sm:w-[320px] lg:w-[340px] h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-2 flex flex-col relative overflow-hidden ${isColumnDraggedOver ? 'bg-emerald-500/20' : ''}`}
     >

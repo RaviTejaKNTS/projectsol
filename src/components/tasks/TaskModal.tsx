@@ -55,10 +55,8 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onD
     };
 
     const handleDelete = () => {
-      if (window.confirm("Are you sure you want to delete this task?")) {
-        onDelete(editingTaskId.taskId);
-        onClose();
-      }
+      onDelete(editingTaskId.taskId);
+      onClose();
     };
   
     const addSubtask = () => {

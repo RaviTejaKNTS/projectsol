@@ -11,7 +11,7 @@ interface ProfileButtonProps {
 }
 
 export const ProfileButton: React.FC<ProfileButtonProps> = ({ onOpenProfile }) => {
-  const { user, profile, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth()
+  const { user, profile, signInWithGoogle, signInWithEmail } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
@@ -85,13 +85,6 @@ export const ProfileButton: React.FC<ProfileButtonProps> = ({ onOpenProfile }) =
                 type="button"
               >
                 Continue with Google
-              </button>
-              <button
-                onClick={signInWithApple}
-                className="w-full rounded-2xl px-4 py-2.5 text-sm font-medium border border-black/10 hover:bg-black/5 transition text-left"
-                type="button"
-              >
-                Continue with Apple
               </button>
 
               <div className="relative my-2 text-center text-[10px] text-black/50">

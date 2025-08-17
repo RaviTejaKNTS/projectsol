@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
 import {
   Plus,
   Settings,
@@ -17,9 +16,10 @@ import { CustomDropdown } from "../components/common/CustomDropdown";
 import { InlineEmailSignIn } from "../components/auth/InlineEmailSignIn";
 import { Column } from "../components/tasks/Column";
 import { TaskModal } from "../components/tasks/TaskModal";
-import { SettingsModal } from "../components/settings/SettingsModal";
+import { SettingsSidebar } from "../components/settings/SettingsSidebar";
 import { TaskReports } from "../components/TaskReports";
 import { CompletedTasksModal } from "../components/CompletedTasksModal";
+import { DeletedTasksModal } from "../components/DeletedTasksModal";
 import {
   uid,
   PRIORITIES,
@@ -100,11 +100,60 @@ export default function TasksMintApp() {
   });
   const [shouldAnimateColumns, setShouldAnimateColumns] = useState(true);
   const [showProfileSidebar, setShowProfileSidebar] = useState(false);
-  const { user, loading, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth();
+  const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
+  const [showDeletedTasks, setShowDeletedTasks] = useState(false);
+  const [undoState, setUndoState] = useState<{
+    isVisible: boolean;
+    message: string;
+    type: 'delete' | 'complete';
+    onUndo: () => void;
+  } | null>(null);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { user, loading, signInWithGoogle, signInWithEmail } = useAuth();
   const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, STORAGE_KEY);
   const prevUserRef = useRef(user);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Cleanup old deleted tasks based on retention period
+  useEffect(() => {
+    const deletedTasksSettings = state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' };
+    
+    if (deletedTasksSettings.enabled && state.deletedTasks?.length > 0) {
+      const now = Date.now();
+      let cutoffTime = 0;
+      
+      switch (deletedTasksSettings.retentionPeriod) {
+        case '1hour':
+          cutoffTime = now - (60 * 60 * 1000);
+          break;
+        case '24hours':
+          cutoffTime = now - (24 * 60 * 60 * 1000);
+          break;
+        case '7days':
+          cutoffTime = now - (7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30days':
+          cutoffTime = now - (30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'forever':
+          return; // Don't cleanup
+        default:
+          cutoffTime = now - (7 * 24 * 60 * 60 * 1000); // Default to 7 days
+      }
+      
+      const filteredDeletedTasks = state.deletedTasks.filter((task: any) => 
+        (task.deletedAt || 0) > cutoffTime
+      );
+      
+      if (filteredDeletedTasks.length !== state.deletedTasks.length) {
+        setState((s: any) => ({
+          ...s,
+          deletedTasks: filteredDeletedTasks
+        }));
+      }
+    }
+  }, [state.deletedTasks, state.deletedTasksSettings]);
 
   // Persist state to localStorage
   useEffect(() => {
@@ -115,7 +164,7 @@ export default function TasksMintApp() {
     }
   }, [state]);
 
-// Theme only (cloud-only mode)
+  // Theme only (cloud-only mode)
   useEffect(() => {
     document.documentElement.classList.toggle("dark", state.theme === "dark");
   }, [state.theme]);
@@ -379,23 +428,120 @@ export default function TasksMintApp() {
   };
 
   const deleteTask = (taskId: string) => {
-    setState((s: any) => {
-      const tasks = { ...s.tasks } as any;
-      delete tasks[taskId];
-      const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
-      return { ...s, tasks, columns };
-    });
+    const task = state.tasks[taskId];
+    if (!task) return;
+
+    const deletedTasksSettings = state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' };
+    
+    if (deletedTasksSettings.enabled) {
+      // Find which column contains this task
+      const sourceColumn = state.columns.find((c: any) => c.taskIds.includes(taskId));
+      const sourceColumnId = sourceColumn?.id;
+      const taskPosition = sourceColumn?.taskIds.indexOf(taskId) || 0;
+      
+      // Store the current state for undo
+      const taskToDelete = { 
+        ...task, 
+        deletedAt: Date.now(),
+        originalColumnId: sourceColumnId,
+        originalPosition: taskPosition
+      };
+      
+      // Remove task from state
+      setState((s: any) => {
+        const tasks = { ...s.tasks };
+        delete tasks[taskId];
+        const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
+        const deletedTasks = [...(s.deletedTasks || []), taskToDelete];
+        
+        return { ...s, tasks, columns, deletedTasks };
+      });
+      
+      // Clear any existing undo timeout
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+
+      // Show undo message in task stats
+      setUndoState({
+        isVisible: true,
+        message: `Task "${task.title}" deleted`,
+        type: 'delete',
+        onUndo: () => {
+          // Clear timeout when undo is clicked
+          if (undoTimeoutRef.current) {
+            clearTimeout(undoTimeoutRef.current);
+            undoTimeoutRef.current = null;
+          }
+          
+          // Undo the deletion
+          setState((s: any) => {
+            const { deletedAt, originalColumnId, originalPosition, ...cleanTask } = taskToDelete;
+            
+            // Find the original column or fallback to first column
+            let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
+            if (!targetColumn) {
+              targetColumn = s.columns[0];
+            }
+            
+            // Insert task back at original position
+            const newTaskIds = [...targetColumn.taskIds];
+            const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
+            newTaskIds.splice(insertPosition, 0, taskId);
+            
+            // Update columns with restored task
+            const updatedColumns = s.columns.map((c: any) => 
+              c.id === targetColumn.id 
+                ? { ...c, taskIds: newTaskIds }
+                : c
+            );
+            
+            return {
+              ...s,
+              tasks: { ...s.tasks, [taskId]: cleanTask },
+              columns: updatedColumns,
+              deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
+            };
+          });
+          
+          setUndoState(null);
+        }
+      });
+
+      // Auto-hide after 10 seconds with protected timeout
+      undoTimeoutRef.current = setTimeout(() => {
+        setUndoState(null);
+        undoTimeoutRef.current = null;
+      }, 10000);
+    } else {
+      // Permanently delete (original behavior)
+      setState((s: any) => {
+        const tasks = { ...s.tasks };
+        delete tasks[taskId];
+        const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
+        return { ...s, tasks, columns };
+      });
+      
+      // No message for permanent deletion when feature is disabled
+    }
   };
 
   const completeTask = (taskId: string) => {
+    const task = state.tasks[taskId];
+    if (!task) return;
+    
+    // Find current column containing the task
+    const currentColumn = state.columns.find((c: any) => c.taskIds.includes(taskId));
+    if (!currentColumn) return;
+    
+    // Store task data for potential undo
+    const taskForUndo = {
+      ...task,
+      originalColumnId: currentColumn.id,
+      originalPosition: currentColumn.taskIds.indexOf(taskId)
+    };
+    
     setState((s: any) => {
-      const task = s.tasks[taskId];
-      if (!task) return s;
-      
-      // Find current column containing the task
-      const currentColumn = s.columns.find((c: any) => c.taskIds.includes(taskId));
-      if (!currentColumn) return s;
-      
       // Mark task as completed and store its last column
       const updatedTask = {
         ...task,
@@ -419,6 +565,70 @@ export default function TasksMintApp() {
         columns: newColumns
       };
     });
+    
+    // Clear any existing undo timeout
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+    }
+
+    // Show completion message with undo option
+    setUndoState({
+      isVisible: true,
+      message: `Great job! Task "${task.title}" completed! 🎉`,
+      type: 'complete',
+      onUndo: () => {
+        // Clear timeout when undo is clicked
+        if (undoTimeoutRef.current) {
+          clearTimeout(undoTimeoutRef.current);
+          undoTimeoutRef.current = null;
+        }
+        
+        // Undo the completion - restore to original column and position
+        setState((s: any) => {
+          const { originalColumnId, originalPosition, ...cleanTask } = taskForUndo;
+          
+          // Find the original column or fallback to first column
+          let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
+          if (!targetColumn) {
+            targetColumn = s.columns[0];
+          }
+          
+          // Insert task back at original position
+          const newTaskIds = [...targetColumn.taskIds];
+          const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
+          newTaskIds.splice(insertPosition, 0, taskId);
+          
+          // Update columns with restored task
+          const updatedColumns = s.columns.map((c: any) => 
+            c.id === targetColumn.id 
+              ? { ...c, taskIds: newTaskIds }
+              : c
+          );
+          
+          // Mark task as incomplete
+          const restoredTask = {
+            ...cleanTask,
+            completed: false,
+            completedAt: undefined,
+            updatedAt: Date.now()
+          };
+          
+          return {
+            ...s,
+            tasks: { ...s.tasks, [taskId]: restoredTask },
+            columns: updatedColumns
+          };
+        });
+        
+        setUndoState(null);
+      }
+    });
+
+    // Auto-hide after 10 seconds with protected timeout
+    undoTimeoutRef.current = setTimeout(() => {
+      setUndoState(null);
+      undoTimeoutRef.current = null;
+    }, 10000);
     
     // Trigger confetti animation for positive feedback
     confetti({
@@ -887,7 +1097,7 @@ export default function TasksMintApp() {
             {/* Settings entry point */}
             <button
               type="button"
-              onClick={() => setState((s: any) => ({ ...s, showSettings: true }))}
+              onClick={() => setShowSettingsSidebar(true)}
               className={`inline-flex items-center gap-1 sm:gap-2 rounded-2xl border ${border} ${surface} px-2 sm:px-3 py-2 text-sm ${subtle} min-w-[80px] justify-center`}
             >
               <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Settings</span>
@@ -920,13 +1130,6 @@ export default function TasksMintApp() {
           className="w-full rounded-2xl px-4 py-2.5 text-sm font-medium border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition text-left text-zinc-900 dark:text-zinc-100"
         >
           Continue with Google
-        </button>
-        <button
-          onClick={signInWithApple}
-          type="button"
-          className="w-full rounded-2xl px-4 py-2.5 text-sm font-medium border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition text-left text-zinc-900 dark:text-zinc-100"
-        >
-          Continue with Apple
         </button>
         <div className="relative my-2 text-center text-[10px] text-zinc-500 dark:text-zinc-400">
           <span className="bg-white dark:bg-zinc-900 px-2 relative z-10">or</span>
@@ -999,6 +1202,7 @@ export default function TasksMintApp() {
             <TaskReports 
               state={state} 
               onOpenCompletedTasks={openCompletedTasks}
+              undoState={undoState || undefined}
               theme={{ surface, border, muted, subtle }} 
             />
           </div>
@@ -1026,22 +1230,31 @@ export default function TasksMintApp() {
       )}
 
       {/* Settings Modal */}
-      <AnimatePresence>
-        {state.showSettings && (
-          <SettingsModal
-            onClose={() => setState((s: any) => ({ ...s, showSettings: false }))}
-            onToggleTheme={toggleTheme}
-            isDark={isDark}
-            onExport={exportJSON}
-            onImport={importJSON}
-            shortcuts={state.shortcuts}
-            onChangeShortcut={(k: string, v: string) =>
-              setState((s: any) => ({ ...s, shortcuts: { ...s.shortcuts, [k]: v } }))
-            }
-            theme={{ surface, border, input, subtle }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Settings Sidebar */}
+      <SettingsSidebar
+        isOpen={showSettingsSidebar}
+        onClose={() => setShowSettingsSidebar(false)}
+        onToggleTheme={toggleTheme}
+        isDark={isDark}
+        onExport={exportJSON}
+        onImport={importJSON}
+        shortcuts={state.shortcuts}
+        onChangeShortcut={(key: string, value: string) => {
+          setState((s: any) => ({
+            ...s,
+            shortcuts: { ...s.shortcuts, [key]: value }
+          }));
+        }}
+        deletedTasksSettings={state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' }}
+        onChangeDeletedTasksSetting={(key: string, value: any) => {
+          setState((s: any) => ({
+            ...s,
+            deletedTasksSettings: { ...s.deletedTasksSettings, [key]: value }
+          }));
+        }}
+        onOpenDeletedTasks={() => setShowDeletedTasks(true)}
+        theme={{ surface, border, input, subtle, muted }}
+      />
 
       {/* Completed Tasks Modal */}
       {state.showCompletedTasks && (
@@ -1054,6 +1267,56 @@ export default function TasksMintApp() {
         />
       )}
 
+      {/* Deleted Tasks Modal */}
+      {showDeletedTasks && (
+        <DeletedTasksModal
+          isOpen={showDeletedTasks}
+          onClose={() => setShowDeletedTasks(false)}
+          deletedTasks={state.deletedTasks || []}
+          onRestoreTask={(taskId: string) => {
+            const deletedTask = state.deletedTasks?.find((t: any) => t.id === taskId);
+            if (deletedTask) {
+              setState((s: any) => {
+                // Clean up the task data (remove deletion metadata)
+                const { deletedAt, originalColumnId, originalPosition, ...cleanTask } = deletedTask;
+                
+                // Find the original column or fallback to first column
+                let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
+                if (!targetColumn) {
+                  targetColumn = s.columns[0]; // Fallback to first column if original doesn't exist
+                }
+                
+                // Insert task back at original position or at the end
+                const newTaskIds = [...targetColumn.taskIds];
+                const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
+                newTaskIds.splice(insertPosition, 0, taskId);
+                
+                // Update columns with restored task
+                const updatedColumns = s.columns.map((c: any) => 
+                  c.id === targetColumn.id 
+                    ? { ...c, taskIds: newTaskIds }
+                    : c
+                );
+                
+                return {
+                  ...s,
+                  tasks: { ...s.tasks, [taskId]: cleanTask },
+                  columns: updatedColumns,
+                  deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
+                };
+              });
+            }
+          }}
+          onPermanentlyDeleteTask={(taskId: string) => {
+            setState((s: any) => ({
+              ...s,
+              deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
+            }));
+          }}
+          theme={{ surface, border, muted, subtle }}
+        />
+      )}
+
       {/* Profile Sidebar */}
       <ProfileSidebar
         isOpen={showProfileSidebar}
@@ -1062,6 +1325,7 @@ export default function TasksMintApp() {
         onForceSync={forceSync}
         theme={{ surface, border, input, subtle, muted }}
       />
+
 
 
       {/* Dev Tests */}

@@ -10,13 +10,11 @@ interface AuthCtx {
   loading: boolean
   error: string | null
   signInWithGoogle: () => Promise<void>
-  signInWithApple: () => Promise<void>
   signInWithEmail: (email: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: { display_name?: string; avatar_url?: string }) => Promise<void>
   deleteAccount: () => Promise<void>
   linkGoogleAccount: () => Promise<void>
-  linkAppleAccount: () => Promise<void>
   linkEmailAccount: (email: string) => Promise<void>
   unlinkProvider: (provider: string) => Promise<void>
 }
@@ -101,15 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
   
-  const signInWithApple = async () => {
-    try {
-      setError(null)
-      await supabase.auth.signInWithOAuth({ provider: 'apple', options: { scopes: 'name email', redirectTo: window.location.origin } })
-    } catch (e: any) {
-      console.error('Apple sign-in failed:', e)
-      setError(e?.message || 'Failed to sign in with Apple')
-    }
-  }
   
   const signInWithEmail = async (email: string) => {
     try {
@@ -175,18 +164,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const linkAppleAccount = async () => {
-    if (!user) throw new Error('Must be signed in to link account')
-    try {
-      setError(null)
-      const { error } = await supabase.auth.linkIdentity({ provider: 'apple', options: { scopes: 'name email', redirectTo: window.location.origin } })
-      if (error) throw error
-    } catch (e: any) {
-      console.error('Apple account linking failed:', e)
-      setError(e?.message || 'Failed to link Apple account')
-      throw e
-    }
-  }
 
   const linkEmailAccount = async (email: string) => {
     if (!user) throw new Error('Must be signed in to link account')
@@ -232,13 +209,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     error,
     inGuestMode: !user, // app is cloud-only; treat no-user as guest mode off
     signInWithGoogle,
-    signInWithApple,
     signInWithEmail,
     signOut,
     updateProfile,
     deleteAccount,
     linkGoogleAccount,
-    linkAppleAccount,
     linkEmailAccount,
     unlinkProvider,
   }), [user, profile, loading, error])

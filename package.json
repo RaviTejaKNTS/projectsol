@@ -17,11 +17,16 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.55.0",
+    "@tailwindcss/typography": "^0.5.16",
     "canvas-confetti": "^1.9.3",
+    "class-variance-authority": "^0.7.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.539.0",
+    "marked": "^16.1.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-scrollbar-hide": "^4.0.0"
   },
   "devDependencies": {
