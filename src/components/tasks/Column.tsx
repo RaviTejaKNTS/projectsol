@@ -153,7 +153,7 @@ export function Column({
 
       <div 
         ref={taskListRef}
-        className="flex-1 min-h-0 -mx-2 px-2 overflow-y-auto rounded-b-3xl border-t border-dashed border-zinc-200 dark:border-zinc-800"
+        className="flex-1 min-h-0 -mx-2 px-2 overflow-y-auto scrollbar-hide rounded-b-3xl border-t border-dashed border-zinc-200 dark:border-zinc-800"
       >
         <div className="pt-2.5" />
         

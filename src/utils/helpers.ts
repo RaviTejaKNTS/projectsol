@@ -149,6 +149,9 @@ export const defaultState = () => {
         dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        completed: false,
+        completedAt: null,
+        lastColumnId: null,
         subtasks: [
           { id: uid(), title: "Sketch data model", completed: true },
           { id: uid(), title: "Pick libraries", completed: false },
@@ -163,6 +166,9 @@ export const defaultState = () => {
         dueDate: new Date(Date.now() + 86400000).toISOString(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        completed: false,
+        completedAt: null,
+        lastColumnId: null,
         subtasks: [
           { id: uid(), title: "Render columns", completed: true },
           { id: uid(), title: "Enable dnd", completed: false },
@@ -177,6 +183,9 @@ export const defaultState = () => {
         dueDate: new Date(Date.now() - 86400000 * 1).toISOString(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        completed: true,
+        completedAt: Date.now() - 86400000 * 0.5,
+        lastColumnId: "done",
         subtasks: [
           { id: uid(), title: "Core features", completed: true },
           { id: uid(), title: "Nice-to-haves", completed: true },
@@ -196,6 +205,7 @@ export const defaultState = () => {
     tempTitle: "",
     showSettings: false,
     showFilters: false,
+    showCompletedTasks: false,
     shortcuts: { ...DEFAULT_SHORTCUTS },
   } as any;
 };

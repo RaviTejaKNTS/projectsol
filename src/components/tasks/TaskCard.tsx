@@ -67,17 +67,24 @@ function DueDate({ task }: any) {
 function CardItem({ task, theme }: any) {
   const visibleLabels = task.labels?.slice(0, 3) || [];
   const hiddenLabelsCount = task.labels?.length > 3 ? task.labels.length - 3 : 0;
+  const isCompleted = task.completed;
 
   return (
     <>
       <div className="flex flex-col items-start gap-1">
         <CardMeta task={task} />
         <div className="text-left w-full">
-          <div className="font-medium leading-tight">{task.title}</div>
-          {task.description && <div className={`text-xs ${theme.muted} line-clamp-2 mt-1`}>{task.description}</div>}
+          <div className={`font-medium leading-tight ${isCompleted ? 'line-through opacity-60' : ''}`}>
+            {task.title}
+          </div>
+          {task.description && (
+            <div className={`text-xs ${theme.muted} line-clamp-2 mt-1 ${isCompleted ? 'line-through opacity-60' : ''}`}>
+              {task.description}
+            </div>
+          )}
         </div>
       </div>
-      <div className="mt-3 flex items-center flex-wrap gap-2">
+      <div className={`mt-3 flex items-center flex-wrap gap-2 ${isCompleted ? 'opacity-60' : ''}`}>
         <DueDate task={task} />
         {visibleLabels.map((label: string) => (
           <div key={label} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 ring-1 ring-inset ring-zinc-500/30">
@@ -172,10 +179,18 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         {/* Circular checkbox in top-right corner */}
         <button
           onClick={handleCompleteClick}
-          className="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-zinc-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center group"
-          title="Mark as completed"
+          className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 transition-colors flex items-center justify-center group ${
+            task.completed 
+              ? 'border-emerald-500 bg-emerald-500 text-white' 
+              : 'border-zinc-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+          }`}
+          title={task.completed ? "Completed" : "Mark as completed"}
         >
-          <Check className="w-3 h-3 text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <Check className={`w-3 h-3 transition-opacity ${
+            task.completed 
+              ? 'opacity-100' 
+              : 'text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100'
+          }`} />
         </button>
         <CardItem task={task} theme={theme} />
       </motion.div>

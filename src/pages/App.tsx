@@ -18,6 +18,8 @@ import { SaveStatusBadge } from "../components/common/SaveStatusBadge";
 import { Column } from "../components/tasks/Column";
 import { TaskModal } from "../components/tasks/TaskModal";
 import { SettingsModal } from "../components/settings/SettingsModal";
+import { TaskReports } from "../components/TaskReports";
+import { CompletedTasksModal } from "../components/CompletedTasksModal";
 import {
   uid,
   PRIORITIES,
@@ -136,6 +138,39 @@ export default function TasksMintApp() {
   const openEditTask = (taskId: string) => {
     const columnId = state.columns.find((c: any) => c.taskIds.includes(taskId))?.id;
     setState((s: any) => ({ ...s, editingTaskId: { columnId, taskId }, showTaskModal: true }));
+  };
+
+  const openCompletedTasks = () => setState((s: any) => ({ ...s, showCompletedTasks: true }));
+  const closeCompletedTasks = () => setState((s: any) => ({ ...s, showCompletedTasks: false }));
+
+  const restoreTask = (taskId: string) => {
+    setState((s: any) => {
+      const task = s.tasks[taskId];
+      if (!task || !task.completed) return s;
+      
+      // Mark task as not completed
+      const updatedTask = {
+        ...task,
+        completed: false,
+        completedAt: null,
+        updatedAt: Date.now()
+      };
+      
+      // Find the column to restore to (use lastColumnId or default to first column)
+      const targetColumnId = task.lastColumnId || s.columns[0]?.id;
+      const newColumns = s.columns.map((c: any) => {
+        if (c.id === targetColumnId) {
+          return { ...c, taskIds: [taskId, ...c.taskIds] };
+        }
+        return c;
+      });
+      
+      return {
+        ...s,
+        tasks: { ...s.tasks, [taskId]: updatedTask },
+        columns: newColumns
+      };
+    });
   };
 
   const toggleTheme = () => setState((s: any) => ({ ...s, theme: s.theme === "dark" ? "light" : "dark" }));
@@ -261,6 +296,9 @@ export default function TasksMintApp() {
         dueDate: payload.dueDate || "",
         createdAt: taskId ? s.tasks[taskId].createdAt : Date.now(),
         updatedAt: Date.now(),
+        completed: taskId ? s.tasks[taskId].completed || false : false,
+        completedAt: taskId ? s.tasks[taskId].completedAt || null : null,
+        lastColumnId: taskId ? s.tasks[taskId].lastColumnId || null : null,
         subtasks: payload.subtasks || [],
       };
       const tasks = { ...s.tasks, [id]: newTask } as any;
@@ -327,9 +365,21 @@ export default function TasksMintApp() {
 
   const completeTask = (taskId: string) => {
     setState((s: any) => {
+      const task = s.tasks[taskId];
+      if (!task) return s;
+      
       // Find current column containing the task
       const currentColumn = s.columns.find((c: any) => c.taskIds.includes(taskId));
       if (!currentColumn) return s;
+      
+      // Mark task as completed and store its last column
+      const updatedTask = {
+        ...task,
+        completed: true,
+        completedAt: Date.now(),
+        updatedAt: Date.now(),
+        lastColumnId: currentColumn.id // Store where it came from for restoration
+      };
       
       // Remove task from its current column
       const newColumns = s.columns.map((c: any) => {
@@ -339,11 +389,11 @@ export default function TasksMintApp() {
         return c;
       });
       
-      // Remove task from tasks object entirely
-      const tasks = { ...s.tasks };
-      delete tasks[taskId];
-      
-      return { ...s, columns: newColumns, tasks };
+      return {
+        ...s,
+        tasks: { ...s.tasks, [taskId]: updatedTask },
+        columns: newColumns
+      };
     });
     
     // Trigger confetti animation for positive feedback
@@ -878,72 +928,74 @@ export default function TasksMintApp() {
           </div>
         ) : null}
 
-        <motion.div
-          className="h-full flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20"
-          variants={{
-            hidden: { opacity: 0 },
-            show: {
-              opacity: 1,
-              transition: { staggerChildren: 0.1 },
-            },
-          }}
-          initial="hidden"
-          animate="show"
-        >
-          {state.columns.map((col: any) => (
-            <motion.div
-              key={col.id}
-              variants={{
-                hidden: { opacity: 0, x: -50 },
-                show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
-              }}
-            >
-              <Column
-                col={col}
-                tasks={state.tasks}
-                ids={sortTasks(filteredTaskIds(col))}
-                theme={{ surface, surfaceAlt, border, subtle, muted }}
-                onOpenNew={() => openNewTask(col.id)}
-                onOpenEdit={openEditTask}
-                onDeleteColumn={deleteColumn}
-                onStartRename={() => startRenameColumn(col.id, col.title)}
-                onCancelRename={cancelRenameColumn}
-                renaming={state.renamingColumnId === col.id}
+        <div className="flex flex-col h-full">
+          <motion.div
+            className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide"
+            variants={{
+              hidden: { opacity: 0 },
+              show: {
+                opacity: 1,
+                transition: { staggerChildren: 0.1 },
+              },
+            }}
+            initial="hidden"
+            animate="show"
+          >
+            {state.columns.map((col: any) => (
+              <motion.div
+                key={col.id}
+                variants={{
+                  hidden: { opacity: 0, x: -50 },
+                  show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
+                }}
+              >
+                <Column
+                  col={col}
+                  tasks={state.tasks}
+                  ids={sortTasks(filteredTaskIds(col))}
+                  theme={{ surface, surfaceAlt, border, subtle, muted }}
+                  onOpenNew={() => openNewTask(col.id)}
+                  onOpenEdit={openEditTask}
+                  onDeleteColumn={deleteColumn}
+                  onStartRename={() => startRenameColumn(col.id, col.title)}
+                  onCancelRename={cancelRenameColumn}
+                  renaming={state.renamingColumnId === col.id}
+                  tempTitle={state.tempTitle}
+                  setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+                  onCommitRename={() => commitRenameColumn(col.id)}
+                  selectedTaskId={state.selectedTaskId}
+                  setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
+                  onMoveTask={moveTask}
+                  onMoveColumn={moveColumn}
+                  onCompleteTask={completeTask}
+                />
+              </motion.div>
+            ))}
+
+            <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
+              <AddColumnCard
+                adding={state.addingColumn}
                 tempTitle={state.tempTitle}
-                setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-                onCommitRename={() => commitRenameColumn(col.id)}
-                selectedTaskId={state.selectedTaskId}
-                setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
-                onMoveTask={moveTask}
-                onMoveColumn={moveColumn}
-                onCompleteTask={completeTask}
+                onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+                onStart={startAddColumn}
+                onAdd={commitAddColumn}
+                onCancel={cancelAddColumn}
+                theme={{ surfaceAlt, border, input, subtle, muted }}
               />
             </motion.div>
-          ))}
-
-          <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
-            <AddColumnCard
-              adding={state.addingColumn}
-              tempTitle={state.tempTitle}
-              onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-              onStart={startAddColumn}
-              onAdd={commitAddColumn}
-              onCancel={cancelAddColumn}
-              theme={{ surfaceAlt, border, input, subtle, muted }}
-            />
           </motion.div>
-        </motion.div>
+
+          {/* Task Reports at the bottom */}
+          <div className="px-2 sm:px-4 lg:px-6 pb-16 sm:pb-20">
+            <TaskReports 
+              state={state} 
+              onOpenCompletedTasks={openCompletedTasks}
+              theme={{ surface, border, muted, subtle }} 
+            />
+          </div>
+        </div>
 
 
-        {/* FAB on all viewports */}
-        <button
-          type="button"
-          onClick={() => openNewTask()}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 inline-flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-2xl shadow-lg text-white bg-gradient-to-br from-emerald-500 via-teal-500 to-sky-500 active:scale-95 z-50"
-          title="Add task"
-        >
-          <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-        </button>
       </div>
 
       {/* Task Modal */}
@@ -983,6 +1035,17 @@ export default function TasksMintApp() {
           />
         )}
       </AnimatePresence>
+
+      {/* Completed Tasks Modal */}
+      {state.showCompletedTasks && (
+        <CompletedTasksModal
+          isOpen={state.showCompletedTasks}
+          onClose={closeCompletedTasks}
+          completedTasks={Object.values(state.tasks).filter((task: any) => task.completed)}
+          onRestoreTask={restoreTask}
+          theme={{ surface, border, muted, subtle }}
+        />
+      )}
 
 
       {/* Dev Tests */}
