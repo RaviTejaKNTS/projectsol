@@ -40,7 +40,11 @@ export const AuthDialog: React.FC<Props> = ({ open, onClose }) => {
       <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
         <div className="mb-4 text-center">
           <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-black/5 flex items-center justify-center">
-            <span className="text-xl">👤</span>
+            <img 
+              src="/tasksmint-logo.png" 
+              alt="TasksMint Logo" 
+              className="h-8 w-8"
+            />
           </div>
           <h2 className="text-lg font-semibold">Sign In</h2>
           <p className="text-xs text-black/60">Continue to sync your boards and tasks across devices.</p>

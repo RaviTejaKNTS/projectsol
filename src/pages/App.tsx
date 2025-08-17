@@ -4,7 +4,6 @@ import {
   Plus,
   Settings,
   ChevronDown,
-  Leaf,
   Search,
   Filter,
   X,
@@ -693,10 +692,11 @@ export default function TasksMintApp() {
       <div className={`sticky top-0 z-40 ${isDark ? "bg-zinc-950/95" : "bg-white/95"} backdrop-blur-md border-b ${border}`}>
         <div className="w-full px-2 sm:px-4 lg:px-6 py-2 sm:py-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="relative h-7 w-7 rounded-2xl overflow-hidden shrink-0">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-teal-500 to-sky-500" />
-              <Leaf className="absolute inset-0 m-auto h-4 w-4 text-white/90" />
-            </div>
+            <img 
+              src="/tasksmint-logo.png" 
+              alt="TasksMint Logo" 
+              className="h-7 w-7 shrink-0"
+            />
             <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">TasksMint</h1>
           </div>
 
