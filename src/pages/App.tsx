@@ -80,7 +80,7 @@ const ActiveFilters = ({ state, setState }: any) => {
 
 
 // ------------------------------------------------------------
-// TasksMint — Material‑ish Kanban To‑Do (Trello style)
+// Project Sol — Material‑ish Kanban To‑Do (Trello style)
 // Polished, responsive board with smooth dnd-kit drag/drop,
 // Material-esque surfaces, dark/light themes, filters,
 // labels, priorities, due dates, subtasks, import/export,
@@ -88,7 +88,7 @@ const ActiveFilters = ({ state, setState }: any) => {
 // ------------------------------------------------------------
 
 
-export default function TasksMintApp() {
+export default function ProjectSolApp() {
   const [state, setState] = useState<any>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -977,11 +977,11 @@ export default function TasksMintApp() {
         <div className="w-full px-2 sm:px-4 lg:px-6 py-2 sm:py-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <img 
-              src="/tasksmint-logo.png" 
-              alt="TasksMint Logo" 
+              src="/project-sol-logo.png" 
+              alt="Project Sol Logo" 
               className="h-7 w-7 shrink-0"
             />
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">TasksMint</h1>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">Project Sol</h1>
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
@@ -1120,7 +1120,7 @@ export default function TasksMintApp() {
     <div className="w-full max-w-sm rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 p-5 shadow-2xl">
       <div className="mb-3 text-center">
         <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center">🔐</div>
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Sign in to use TasksMint</h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Sign in to use Project Sol</h2>
         <p className="text-xs text-zinc-600 dark:text-zinc-400">Create, sync and access your tasks anywhere.</p>
       </div>
       <div className="space-y-2">
@@ -1405,9 +1405,9 @@ function DevTests() {
       const moved = moveItemBetween(["a","b"], ["c"], "a", "c");
       assert(moved.from.join(",") === "b" && moved.to.join(",") === "a,c".replace(/,/g, ",").split(",").join(","), "moveItemBetween basic move");
 
-      console.info("TasksMint self-tests passed:\n" + results.join("\n"));
+      console.info("Project Sol self-tests passed:\n" + results.join("\n"));
     } catch (e) {
-      console.error("TasksMint self-tests FAILED:", e);
+      console.error("Project Sol self-tests FAILED:", e);
     }
   }, []);
   return null;

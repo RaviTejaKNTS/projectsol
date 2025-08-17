@@ -210,4 +210,4 @@ export const defaultState = () => {
   } as any;
 };
 
-export const STORAGE_KEY = "tasksmint_kanban_state_v1";
+export const STORAGE_KEY = "project-sol_kanban_state_v1";

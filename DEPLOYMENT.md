@@ -1,4 +1,4 @@
-# Deployment Checklist for TasksMint
+# Deployment Checklist for Project Sol
 
 ## ✅ Issues Fixed
 

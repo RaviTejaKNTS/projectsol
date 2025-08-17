@@ -1,4 +1,4 @@
-# TasksMint
+# Project Sol
 
 A modern Kanban task management app with cloud sync, built with React, TypeScript, and Supabase.
 
