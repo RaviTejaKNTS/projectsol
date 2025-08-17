@@ -171,6 +171,7 @@ export function Column({
                 onMoveTask={onMoveTask}
                 columnId={col.id}
                 index={index}
+                taskIds={ids}
                 onCompleteTask={onCompleteTask}
               />
             ))}

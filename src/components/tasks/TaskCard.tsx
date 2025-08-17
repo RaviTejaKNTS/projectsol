@@ -102,7 +102,7 @@ function CardItem({ task, theme }: any) {
   );
 }
 
-export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index, onCompleteTask }: any) {
+export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index, taskIds, onCompleteTask }: any) {
   const ref = useRef<HTMLDivElement>(null);
   
   const [isDraggedOver, setIsDraggedOver] = useState(false);
@@ -138,7 +138,19 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
       onDrop: (args) => {
         const fromTaskId = args.source.data.taskId as string;
         const fromColumnId = args.source.data.columnId as string;
-        onMoveTask(fromTaskId, fromColumnId, columnId, index);
+        
+        // If moving within the same column, adjust the index to account for the dragged task being removed
+        let adjustedIndex = index;
+        if (fromColumnId === columnId) {
+          // Find the current position of the dragged task
+          const draggedTaskIndex = taskIds.indexOf(fromTaskId);
+          // If the dragged task is above the drop target, subtract 1 from the target index
+          if (draggedTaskIndex !== -1 && draggedTaskIndex < index) {
+            adjustedIndex = index - 1;
+          }
+        }
+        
+        onMoveTask(fromTaskId, fromColumnId, columnId, adjustedIndex);
         setIsDraggedOver(false);
       },
     });
