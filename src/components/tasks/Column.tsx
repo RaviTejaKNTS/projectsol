@@ -24,6 +24,7 @@ export function Column({
   onMoveColumn,
   selectedTaskId,
   setSelectedTaskId,
+  onCompleteTask,
 }: any) {
   const columnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -101,7 +102,7 @@ export function Column({
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 120, damping: 18 }}
-        className={`snap-start shrink-0 min-w-0 h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-2 flex flex-col relative overflow-hidden ${isColumnDraggedOver ? 'bg-emerald-500/20' : ''}`}
+        className={`snap-start shrink-0 w-80 sm:w-[320px] lg:w-[340px] h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-2 flex flex-col relative overflow-hidden ${isColumnDraggedOver ? 'bg-emerald-500/20' : ''}`}
     >
                   <div ref={headerRef} className="flex items-center gap-2 mb-3 shrink-0 cursor-grab">
         {renaming ? (
@@ -170,6 +171,7 @@ export function Column({
                 onMoveTask={onMoveTask}
                 columnId={col.id}
                 index={index}
+                onCompleteTask={onCompleteTask}
               />
             ))}
           </AnimatePresence>

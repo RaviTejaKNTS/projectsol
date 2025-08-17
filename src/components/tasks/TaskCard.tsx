@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Tag } from 'lucide-react';
+import { AlertTriangle, Calendar, Tag, Check } from 'lucide-react';
 import { prettyDate, getDueDateStatus } from '../../utils/helpers';
 import { useEffect, useRef, useState } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
@@ -95,7 +95,7 @@ function CardItem({ task, theme }: any) {
   );
 }
 
-export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index }: any) {
+export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index, onCompleteTask }: any) {
   const ref = useRef<HTMLDivElement>(null);
   
   const [isDraggedOver, setIsDraggedOver] = useState(false);
@@ -146,6 +146,11 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
     onEdit();
   };
 
+  const handleCompleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCompleteTask(id);
+  };
+
   return (
     <>
       {isDraggedOver && <DropIndicator />}
@@ -164,6 +169,14 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         className={`relative rounded-2xl border ${theme.border} ${theme.surface} p-4 shadow-sm select-none transition-all duration-150 cursor-grab active:cursor-grabbing ${
           selected ? "ring-2 ring-emerald-500" : "hover:shadow-md"
         }`}>
+        {/* Circular checkbox in top-right corner */}
+        <button
+          onClick={handleCompleteClick}
+          className="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-zinc-400 dark:border-zinc-500 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center group"
+          title="Mark as completed"
+        >
+          <Check className="w-3 h-3 text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
         <CardItem task={task} theme={theme} />
       </motion.div>
     </>

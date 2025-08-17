@@ -9,6 +9,7 @@ import {
   Filter,
   X,
 } from "lucide-react";
+import confetti from 'canvas-confetti';
 import { ProfileButton } from '../components/ProfileButton';
 import { useCloudState } from '../hooks/useCloudState';
 import { useAuth } from '../contexts/AuthProvider';
@@ -322,6 +323,36 @@ export default function TasksMintApp() {
       delete tasks[taskId];
       const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
       return { ...s, tasks, columns };
+    });
+  };
+
+  const completeTask = (taskId: string) => {
+    setState((s: any) => {
+      // Find current column containing the task
+      const currentColumn = s.columns.find((c: any) => c.taskIds.includes(taskId));
+      if (!currentColumn) return s;
+      
+      // Remove task from its current column
+      const newColumns = s.columns.map((c: any) => {
+        if (c.id === currentColumn.id) {
+          return { ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) };
+        }
+        return c;
+      });
+      
+      // Remove task from tasks object entirely
+      const tasks = { ...s.tasks };
+      delete tasks[taskId];
+      
+      return { ...s, columns: newColumns, tasks };
+    });
+    
+    // Trigger confetti animation for positive feedback
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#10b981', '#059669', '#047857']
     });
   };
 
@@ -848,7 +879,7 @@ export default function TasksMintApp() {
         ) : null}
 
         <motion.div
-          className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20"
+          className="h-full flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20"
           variants={{
             hidden: { opacity: 0 },
             show: {
@@ -885,6 +916,7 @@ export default function TasksMintApp() {
                 setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
                 onMoveTask={moveTask}
                 onMoveColumn={moveColumn}
+                onCompleteTask={completeTask}
               />
             </motion.div>
           ))}
@@ -929,6 +961,7 @@ export default function TasksMintApp() {
           allLabels={allLabels}
           onDelete={deleteTask}
           onDeleteLabel={deleteLabel}
+          onCompleteTask={completeTask}
           theme={{ surface, border, input, muted, subtle }}
         />
       )}
@@ -965,7 +998,7 @@ function AddColumnCard({ adding, tempTitle, onChangeTitle, onStart, onAdd, onCan
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 120, damping: 18 }}
-      className={`snap-start shrink-0 min-w-0 h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-3 sm:p-4 flex flex-col justify-center items-stretch`}
+      className={`snap-start shrink-0 w-80 sm:w-[320px] lg:w-[340px] h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-3 sm:p-4 flex flex-col justify-center items-stretch`}
     >
       {!adding ? (
         <button

@@ -5,7 +5,7 @@ import { CustomDropdown } from "../common/CustomDropdown";
 import { CustomDatePicker } from "../common/CustomDatePicker";
 import { PRIORITIES, priorityColor } from "../../utils/helpers";
 
-export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onDeleteLabel, theme }: any) {
+export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onDeleteLabel, onCompleteTask, theme }: any) {
     const isEdit = Boolean(editingTaskId?.taskId);
     const task = isEdit ? state.tasks[editingTaskId.taskId] : null;
     const [title, setTitle] = useState(task?.title || "");
@@ -363,6 +363,18 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onD
               )}
             </div>
             <div className="flex items-center gap-2">
+              {isEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCompleteTask(editingTaskId.taskId);
+                    onClose();
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ring-1 ring-inset ${priorityColor('Low')}`}
+                >
+                  Mark task as completed
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
