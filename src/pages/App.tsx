@@ -928,26 +928,9 @@ export default function TasksMintApp() {
           </div>
         ) : null}
 
-        <motion.div
-          className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide"
-          variants={{
-            hidden: { opacity: 0 },
-            show: {
-              opacity: 1,
-              transition: { staggerChildren: 0.1 },
-            },
-          }}
-          initial="hidden"
-          animate="show"
-        >
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide">
             {state.columns.map((col: any) => (
-              <motion.div
-                key={col.id}
-                variants={{
-                  hidden: { opacity: 0, x: -50 },
-                  show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
-                }}
-              >
+              <div key={col.id}>
                 <Column
                   col={col}
                   tasks={state.tasks}
@@ -968,10 +951,10 @@ export default function TasksMintApp() {
                   onMoveColumn={moveColumn}
                   onCompleteTask={completeTask}
                 />
-              </motion.div>
+              </div>
             ))}
 
-            <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
+            <div>
               <AddColumnCard
                 adding={state.addingColumn}
                 tempTitle={state.tempTitle}
@@ -981,11 +964,11 @@ export default function TasksMintApp() {
                 onCancel={cancelAddColumn}
                 theme={{ surfaceAlt, border, input, subtle, muted }}
               />
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
           {/* Task Reports - Bottom section within same container */}
-          <div className="mt-4 mb-4">
+          <div className="mt-2 mb-2">
             <TaskReports 
               state={state} 
               onOpenCompletedTasks={openCompletedTasks}
@@ -1053,11 +1036,7 @@ export default function TasksMintApp() {
 
 function AddColumnCard({ adding, tempTitle, onChangeTitle, onStart, onAdd, onCancel, theme }: any) {
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 120, damping: 18 }}
+    <div
       className={`snap-start shrink-0 w-80 sm:w-[320px] lg:w-[340px] h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-3 sm:p-4 flex flex-col justify-center items-stretch`}
     >
       {!adding ? (
@@ -1087,7 +1066,7 @@ function AddColumnCard({ adding, tempTitle, onChangeTitle, onStart, onAdd, onCan
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
