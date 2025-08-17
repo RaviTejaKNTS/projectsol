@@ -10,11 +10,11 @@ import {
 } from "lucide-react";
 import confetti from 'canvas-confetti';
 import { ProfileButton } from '../components/ProfileButton';
+import { ProfileSidebar } from '../components/ProfileSidebar';
 import { useCloudState } from '../hooks/useCloudState';
 import { useAuth } from '../contexts/AuthProvider';
 import { CustomDropdown } from "../components/common/CustomDropdown";
 import { InlineEmailSignIn } from "../components/auth/InlineEmailSignIn";
-import { SaveStatusBadge } from "../components/common/SaveStatusBadge";
 import { Column } from "../components/tasks/Column";
 import { TaskModal } from "../components/tasks/TaskModal";
 import { SettingsModal } from "../components/settings/SettingsModal";
@@ -98,8 +98,11 @@ export default function TasksMintApp() {
     }
     return defaultState();
   });
+  const [shouldAnimateColumns, setShouldAnimateColumns] = useState(true);
+  const [showProfileSidebar, setShowProfileSidebar] = useState(false);
   const { user, loading, signInWithGoogle, signInWithApple, signInWithEmail } = useAuth();
   const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, STORAGE_KEY);
+  const prevUserRef = useRef(user);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -116,6 +119,27 @@ export default function TasksMintApp() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", state.theme === "dark");
   }, [state.theme]);
+
+  // Trigger column animations on login
+  useEffect(() => {
+    if (prevUserRef.current !== user) {
+      if (user && !prevUserRef.current) {
+        // User just logged in
+        setShouldAnimateColumns(true);
+      }
+      prevUserRef.current = user;
+    }
+  }, [user]);
+
+  // Reset animation flag after columns have animated
+  useEffect(() => {
+    if (shouldAnimateColumns) {
+      const timer = setTimeout(() => {
+        setShouldAnimateColumns(false);
+      }, 800); // Allow time for all columns to animate
+      return () => clearTimeout(timer);
+    }
+  }, [shouldAnimateColumns]);
 
 
 
@@ -869,8 +893,9 @@ export default function TasksMintApp() {
               <Settings className="h-4 w-4" /> <span className="hidden sm:inline">Settings</span>
             </button>
           
-            <SaveStatusBadge status={saveStatus as any} onForceSync={forceSync} />
-              <ProfileButton />
+            <ProfileButton 
+              onOpenProfile={() => setShowProfileSidebar(true)}
+            />
 </div>
         </div>
       </div>
@@ -929,7 +954,7 @@ export default function TasksMintApp() {
         ) : null}
 
         <div className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide">
-            {state.columns.map((col: any) => (
+            {state.columns.map((col: any, index: number) => (
               <div key={col.id}>
                 <Column
                   col={col}
@@ -950,6 +975,8 @@ export default function TasksMintApp() {
                   onMoveTask={moveTask}
                   onMoveColumn={moveColumn}
                   onCompleteTask={completeTask}
+                  shouldAnimate={shouldAnimateColumns}
+                  animationIndex={index}
                 />
               </div>
             ))}
@@ -1026,6 +1053,15 @@ export default function TasksMintApp() {
           theme={{ surface, border, muted, subtle }}
         />
       )}
+
+      {/* Profile Sidebar */}
+      <ProfileSidebar
+        isOpen={showProfileSidebar}
+        onClose={() => setShowProfileSidebar(false)}
+        saveStatus={saveStatus as any}
+        onForceSync={forceSync}
+        theme={{ surface, border, input, subtle, muted }}
+      />
 
 
       {/* Dev Tests */}

@@ -25,6 +25,8 @@ export function Column({
   selectedTaskId,
   setSelectedTaskId,
   onCompleteTask,
+  shouldAnimate = false,
+  animationIndex = 0,
 }: any) {
   const columnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -99,9 +101,19 @@ export function Column({
       <motion.div
         ref={columnRef}
         layout
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 120, damping: 18 }}
+        initial={shouldAnimate ? { opacity: 0, x: -100, scale: 0.95 } : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+        transition={shouldAnimate ? {
+          type: "spring",
+          stiffness: 200,
+          damping: 25,
+          delay: animationIndex * 0.1,
+          duration: 0.4
+        } : {
+          type: "spring",
+          stiffness: 120,
+          damping: 18
+        }}
         className={`snap-start shrink-0 w-80 sm:w-[320px] lg:w-[340px] h-full rounded-3xl border ${theme.border} ${theme.surfaceAlt} backdrop-blur p-2 flex flex-col relative overflow-hidden ${isColumnDraggedOver ? 'bg-emerald-500/20' : ''}`}
     >
                   <div ref={headerRef} className="flex items-center gap-2 mb-3 shrink-0 cursor-grab">
