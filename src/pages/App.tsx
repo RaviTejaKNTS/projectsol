@@ -847,40 +847,60 @@ export default function TasksMintApp() {
           </div>
         ) : null}
 
-        <div className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20">
+        <motion.div
+          className="h-full grid grid-flow-col auto-cols-[minmax(280px,1fr)] sm:auto-cols-[minmax(300px,1fr)] lg:auto-cols-[minmax(320px,1fr)] gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden pb-16 sm:pb-20"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: { staggerChildren: 0.1 },
+            },
+          }}
+          initial="hidden"
+          animate="show"
+        >
           {state.columns.map((col: any) => (
-            <Column
+            <motion.div
               key={col.id}
-              col={col}
-              tasks={state.tasks}
-              ids={sortTasks(filteredTaskIds(col))}
-              theme={{ surface, surfaceAlt, border, subtle, muted }}
-              onOpenNew={() => openNewTask(col.id)}
-              onOpenEdit={openEditTask}
-              onDeleteColumn={deleteColumn}
-              onStartRename={() => startRenameColumn(col.id, col.title)}
-              onCancelRename={cancelRenameColumn}
-              renaming={state.renamingColumnId === col.id}
-              tempTitle={state.tempTitle}
-              setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-              onCommitRename={() => commitRenameColumn(col.id)}
-              selectedTaskId={state.selectedTaskId}
-              setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
-              onMoveTask={moveTask}
-              onMoveColumn={moveColumn}
-            />
+              variants={{
+                hidden: { opacity: 0, x: -50 },
+                show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 30 } },
+              }}
+            >
+              <Column
+                col={col}
+                tasks={state.tasks}
+                ids={sortTasks(filteredTaskIds(col))}
+                theme={{ surface, surfaceAlt, border, subtle, muted }}
+                onOpenNew={() => openNewTask(col.id)}
+                onOpenEdit={openEditTask}
+                onDeleteColumn={deleteColumn}
+                onStartRename={() => startRenameColumn(col.id, col.title)}
+                onCancelRename={cancelRenameColumn}
+                renaming={state.renamingColumnId === col.id}
+                tempTitle={state.tempTitle}
+                setTempTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+                onCommitRename={() => commitRenameColumn(col.id)}
+                selectedTaskId={state.selectedTaskId}
+                setSelectedTaskId={(id: string) => setState((s: any) => ({ ...s, selectedTaskId: id }))}
+                onMoveTask={moveTask}
+                onMoveColumn={moveColumn}
+              />
+            </motion.div>
           ))}
 
-          <AddColumnCard
-            adding={state.addingColumn}
-            tempTitle={state.tempTitle}
-            onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
-            onStart={startAddColumn}
-            onAdd={commitAddColumn}
-            onCancel={cancelAddColumn}
-            theme={{ surfaceAlt, border, input, subtle, muted }}
-          />
-        </div>
+          <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1 } }}>
+            <AddColumnCard
+              adding={state.addingColumn}
+              tempTitle={state.tempTitle}
+              onChangeTitle={(v: string) => setState((s: any) => ({ ...s, tempTitle: v }))}
+              onStart={startAddColumn}
+              onAdd={commitAddColumn}
+              onCancel={cancelAddColumn}
+              theme={{ surfaceAlt, border, input, subtle, muted }}
+            />
+          </motion.div>
+        </motion.div>
 
 
         {/* FAB on all viewports */}

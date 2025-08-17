@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sun, Moon, Upload, Download } from 'lucide-react';
+import { Sun, Moon, Upload, Download, ChevronRight } from 'lucide-react';
 import { serializeCombo } from '../../utils/helpers';
 
 function ShortcutInput({ value, onChange, theme }: any) {
@@ -20,6 +20,7 @@ function ShortcutInput({ value, onChange, theme }: any) {
 
 export function SettingsModal({ onClose, onToggleTheme, isDark, onExport, onImport, shortcuts, onChangeShortcut, theme }: any) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const shortcutItems = [
     { key: "newTask", label: "New task" },
     { key: "newColumn", label: "New list/column" },
@@ -91,19 +92,24 @@ export function SettingsModal({ onClose, onToggleTheme, isDark, onExport, onImpo
           </div>
 
           <div>
-            <div className="mb-1">Keyboard shortcuts</div>
-            <div className="space-y-2">
-              {shortcutItems.map((it) => (
-                <div key={it.key} className="flex items-center justify-between gap-2">
-                  <span>{it.label}</span>
-                  <ShortcutInput
-                    value={shortcuts[it.key]}
-                    onChange={(v: string) => onChangeShortcut(it.key, v)}
-                    theme={theme}
-                  />
-                </div>
-              ))}
+            <div className="flex items-center justify-between cursor-pointer" onClick={() => setShowShortcuts(!showShortcuts)}>
+              <span>Keyboard shortcuts</span>
+              <ChevronRight className={`h-5 w-5 transition-transform ${showShortcuts ? 'rotate-90' : ''}`} />
             </div>
+            {showShortcuts && (
+              <div className="space-y-2 mt-2 pl-2 border-l border-gray-200 dark:border-gray-700">
+                {shortcutItems.map((it) => (
+                  <div key={it.key} className="flex items-center justify-between gap-2">
+                    <span>{it.label}</span>
+                    <ShortcutInput
+                      value={shortcuts[it.key]}
+                      onChange={(v: string) => onChangeShortcut(it.key, v)}
+                      theme={theme}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
