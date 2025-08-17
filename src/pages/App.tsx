@@ -876,7 +876,7 @@ export default function TasksMintApp() {
       </div>
 
       {/* Board */}
-      <div className="w-full h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] px-2 sm:px-4 lg:px-6 py-3 sm:py-4 overflow-hidden">
+      <div className="w-full h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] px-2 sm:px-4 lg:px-6 py-3 sm:py-4 overflow-hidden flex flex-col">
 {/* AUTH_OVERLAY_START */}
 {loading ? (
         <div className="absolute inset-0 z-[120] flex items-center justify-center" />
@@ -928,19 +928,18 @@ export default function TasksMintApp() {
           </div>
         ) : null}
 
-        <div className="flex flex-col h-full">
-          <motion.div
-            className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide"
-            variants={{
-              hidden: { opacity: 0 },
-              show: {
-                opacity: 1,
-                transition: { staggerChildren: 0.1 },
-              },
-            }}
-            initial="hidden"
-            animate="show"
-          >
+        <motion.div
+          className="flex gap-3 sm:gap-4 overflow-x-auto overflow-y-hidden flex-1 min-h-0 scrollbar-hide"
+          variants={{
+            hidden: { opacity: 0 },
+            show: {
+              opacity: 1,
+              transition: { staggerChildren: 0.1 },
+            },
+          }}
+          initial="hidden"
+          animate="show"
+        >
             {state.columns.map((col: any) => (
               <motion.div
                 key={col.id}
@@ -985,16 +984,14 @@ export default function TasksMintApp() {
             </motion.div>
           </motion.div>
 
-          {/* Task Reports at the bottom */}
-          <div className="px-2 sm:px-4 lg:px-6 pb-16 sm:pb-20">
+          {/* Task Reports - Bottom section within same container */}
+          <div className="mt-4 mb-4">
             <TaskReports 
               state={state} 
               onOpenCompletedTasks={openCompletedTasks}
               theme={{ surface, border, muted, subtle }} 
             />
           </div>
-        </div>
-
 
       </div>
 
