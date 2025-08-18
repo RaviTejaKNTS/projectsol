@@ -6,6 +6,7 @@ A modern Kanban task management app with cloud sync, built with React, TypeScrip
 
 - 🎯 **Kanban Board**: Drag & drop task management with columns
 - ☁️ **Cloud Sync**: Real-time synchronization across devices
+- 🗂️ **Multiple Boards**: Create and switch between boards
 - 🔐 **Authentication**: Google, Apple, and email sign-in
 - 🎨 **Modern UI**: Beautiful, responsive design with dark/light themes
 - ⌨️ **Keyboard Shortcuts**: Power user features for efficiency
