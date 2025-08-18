@@ -15,9 +15,13 @@ interface ProfileSidebarProps {
     subtle: string;
     muted: string;
   };
+  boards: { id: string; name: string }[];
+  currentBoardId: string;
+  onCreateBoard: (name: string) => void;
+  onSelectBoard: (id: string) => void;
 }
 
-export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose, saveStatus = 'idle', onForceSync, theme }) => {
+export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose, saveStatus = 'idle', onForceSync, theme, boards, currentBoardId, onCreateBoard, onSelectBoard }) => {
   const { user, profile, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -287,6 +291,32 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                         Sync Now
                       </button>
                     )}
+                  </div>
+
+                  {/* Boards */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <h3 className="text-sm font-medium mb-3">Boards</h3>
+                    <div className="space-y-2">
+                      {boards.map((b) => (
+                        <button
+                          key={b.id}
+                          onClick={() => onSelectBoard(b.id)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm border ${b.id === currentBoardId ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' : theme.subtle + ' ' + theme.border} transition-colors`}
+                        >
+                          <span className="truncate">{b.name}</span>
+                          {b.id === currentBoardId && <span className="text-xs">Current</span>}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const name = prompt('Board name');
+                          if (name) onCreateBoard(name);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                      >
+                        + New Board
+                      </button>
+                    </div>
                   </div>
 
                   {/* Connected Accounts */}

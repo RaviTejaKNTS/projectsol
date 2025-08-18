@@ -13,7 +13,7 @@ export function useCloudState(
   state: any,
   setState: (updater: any) => void,
   _DEFAULT_SHORTCUTS: Record<string, string>,
-  _STORAGE_KEY?: string
+  boardId: string
 ) {
   const { user } = useAuth()
   const [status, setStatus] = useState<'idle'|'saving'|'saved'|'error'>('idle')
@@ -43,6 +43,9 @@ export function useCloudState(
       lastLocalUpdatedAt.current = null
       return
     }
+    saveEnabled.current = false
+    lastServerUpdatedAt.current = null
+    lastLocalUpdatedAt.current = null
     let canceled = false
     const load = async () => {
       try {
@@ -51,6 +54,7 @@ export function useCloudState(
           .from('app_state')
           .select('state, updated_at')
           .eq('user_id', user.id)
+          .eq('board_id', boardId)
           .maybeSingle()
         if (error) throw error
         if (!canceled) {
@@ -74,7 +78,7 @@ export function useCloudState(
     load()
     return () => { canceled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
+  }, [user?.id, boardId])
 
   // Subscribe to realtime changes for multi-device sync
   useEffect(() => {
@@ -87,7 +91,7 @@ export function useCloudState(
         .channel('app_state_changes')
         .on('postgres_changes', { schema: 'public', table: 'app_state', event: '*', filter: `user_id=eq.${user.id}` }, (payload: any) => {
           const row = (payload.new ?? payload.record) as any
-          if (!row) return
+          if (!row || row.board_id !== boardId) return
           // Ignore events from this tab (requires last_write_by column)
           if (row.last_write_by && row.last_write_by === instanceId.current) return
           // Ignore older/equal updates
@@ -107,7 +111,7 @@ export function useCloudState(
       return () => {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, state])
+  }, [user?.id, state, boardId])
 
   // Autosave on local state changes (after initial cloud load)
   useEffect(() => {
@@ -125,7 +129,7 @@ export function useCloudState(
         setStatus('saving')
         const { data, error } = await supabase
           .from('app_state')
-          .upsert({ user_id: user.id, state, last_write_by: instanceId.current }, { onConflict: 'user_id' })
+          .upsert({ user_id: user.id, board_id: boardId, state, last_write_by: instanceId.current }, { onConflict: 'user_id,board_id' })
           .select('updated_at')
           .single()
         if (error) throw error
@@ -148,7 +152,7 @@ export function useCloudState(
     const t = setTimeout(save, 250) // slightly higher delay to coalesce rapid edits
     return () => { canceled = true; clearTimeout(t) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, state])
+  }, [user?.id, state, boardId])
 
   // Force sync function that can be called manually
   const forceSync = async () => {
@@ -158,7 +162,7 @@ export function useCloudState(
       setStatus('saving')
       const { data, error } = await supabase
         .from('app_state')
-        .upsert({ user_id: user.id, state, last_write_by: instanceId.current }, { onConflict: 'user_id' })
+        .upsert({ user_id: user.id, board_id: boardId, state, last_write_by: instanceId.current }, { onConflict: 'user_id,board_id' })
         .select('updated_at')
         .single()
       if (error) throw error

@@ -211,3 +211,4 @@ export const defaultState = () => {
 };
 
 export const STORAGE_KEY = "project-sol_kanban_state_v1";
+export const BOARD_META_KEY = "project-sol_board_meta_v1";

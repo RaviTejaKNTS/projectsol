@@ -32,6 +32,7 @@ import {
   moveItemBetween,
   defaultState,
   STORAGE_KEY,
+  BOARD_META_KEY,
 } from "../utils/helpers";
 
 
@@ -89,13 +90,33 @@ const ActiveFilters = ({ state, setState }: any) => {
 
 
 export default function ProjectSolApp() {
+  const [boards, setBoards] = useState<{ id: string; name: string }[]>(() => {
+    try {
+      const meta = localStorage.getItem(BOARD_META_KEY);
+      if (meta) {
+        const parsed = JSON.parse(meta);
+        if (parsed?.boards?.length) return parsed.boards;
+      }
+    } catch {}
+    const id = uid();
+    return [{ id, name: 'My Board' }];
+  });
+  const [currentBoardId, setCurrentBoardId] = useState<string>(() => {
+    try {
+      const meta = localStorage.getItem(BOARD_META_KEY);
+      if (meta) {
+        const parsed = JSON.parse(meta);
+        return parsed?.currentBoardId || parsed?.boards?.[0]?.id || boards[0].id;
+      }
+    } catch {}
+    return boards[0].id;
+  });
+  const boardStorageKey = `${STORAGE_KEY}_${currentBoardId}`;
   const [state, setState] = useState<any>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(boardStorageKey);
       if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
+    } catch {}
     return defaultState();
   });
   const [shouldAnimateColumns, setShouldAnimateColumns] = useState(true);
@@ -110,10 +131,23 @@ export default function ProjectSolApp() {
   } | null>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { user, loading, signInWithGoogle, signInWithEmail } = useAuth();
-  const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, STORAGE_KEY);
+  const { status: saveStatus, forceSync } = useCloudState(state as any, setState as any, DEFAULT_SHORTCUTS, currentBoardId);
   const prevUserRef = useRef(user);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  const createBoard = (name: string) => {
+    const id = uid();
+    setBoards(prev => [...prev, { id, name }]);
+    setCurrentBoardId(id);
+    const ds = defaultState();
+    (ds as any).name = name;
+    setState(ds);
+  };
+
+  const selectBoard = (id: string) => {
+    setCurrentBoardId(id);
+  };
 
   // Cleanup old deleted tasks based on retention period
   useEffect(() => {
@@ -158,11 +192,41 @@ export default function ProjectSolApp() {
   // Persist state to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(boardStorageKey, JSON.stringify(state));
     } catch (e) {
       console.warn("Failed to save state to localStorage", e);
     }
-  }, [state]);
+  }, [state, boardStorageKey]);
+
+  // Persist boards metadata
+  useEffect(() => {
+    try {
+      localStorage.setItem(BOARD_META_KEY, JSON.stringify({ currentBoardId, boards }));
+    } catch (e) {
+      console.warn('Failed to save board metadata', e);
+    }
+  }, [boards, currentBoardId]);
+
+  // Load state when switching boards
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(boardStorageKey);
+      if (saved) {
+        setState(JSON.parse(saved));
+      } else {
+        const ds = defaultState();
+        const b = boards.find(b => b.id === currentBoardId);
+        if (b) (ds as any).name = b.name;
+        setState(ds);
+      }
+    } catch {
+      const ds = defaultState();
+      const b = boards.find(b => b.id === currentBoardId);
+      if (b) (ds as any).name = b.name;
+      setState(ds);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBoardId]);
 
   // Theme only (cloud-only mode)
   useEffect(() => {
@@ -1324,6 +1388,10 @@ export default function ProjectSolApp() {
         saveStatus={saveStatus as any}
         onForceSync={forceSync}
         theme={{ surface, border, input, subtle, muted }}
+        boards={boards}
+        currentBoardId={currentBoardId}
+        onCreateBoard={createBoard}
+        onSelectBoard={selectBoard}
       />
 
 
