@@ -144,7 +144,7 @@ export function Column({
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${theme.muted} bg-black/5 dark:bg-white/10`}>
               {ids.length}
             </span>
-            <button type="button" onClick={onOpenNew} className={`p-1.5 rounded-lg ${theme.subtle}`} title="New task">
+            <button type="button" onClick={onOpenNew} className={`p-1.5 rounded-lg ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10 transition-colors`} title="New task">
               <Plus className="h-4 w-4" />
             </button>
             <CustomDropdown

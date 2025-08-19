@@ -5,7 +5,7 @@ import { CustomDropdown } from "../common/CustomDropdown";
 import { CustomDatePicker } from "../common/CustomDatePicker";
 import { PRIORITIES, priorityColor } from "../../utils/helpers";
 
-export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onDeleteLabel, onCompleteTask, theme }: any) {
+export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumnId, onDelete, onDeleteLabel, onCompleteTask, theme }: any) {
     const isEdit = Boolean(editingTaskId?.taskId);
     const task = isEdit ? state.tasks[editingTaskId.taskId] : null;
     const [title, setTitle] = useState(task?.title || "");
@@ -20,8 +20,32 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onD
     const [draggedSubtask, setDraggedSubtask] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [newLabel, setNewLabel] = useState("");
-    const [columnId, setColumnId] = useState(editingTaskId?.columnId || state.columns[0]?.id);
+    const [columnId, setColumnId] = useState(editingTaskId?.columnId || newTaskColumnId || state.columns[0]?.id);
   
+    // Update state when editingTaskId or newTaskColumnId changes
+    useEffect(() => {
+      if (editingTaskId) {
+        // Edit mode - load existing task data
+        const task = state.tasks[editingTaskId.taskId];
+        setTitle(task?.title || "");
+        setDescription(task?.description || "");
+        setPriority(task?.priority || "Medium");
+        setDueDate(task?.dueDate ? task.dueDate.slice(0, 10) : "");
+        setLabels(task?.labels || []);
+        setSubtasks(task?.subtasks || []);
+        setColumnId(editingTaskId.columnId);
+      } else {
+        // New task mode - reset to defaults
+        setTitle("");
+        setDescription("");
+        setPriority("Medium");
+        setDueDate("");
+        setLabels([]);
+        setSubtasks([]);
+        setColumnId(newTaskColumnId || state.columns[0]?.id);
+      }
+    }, [editingTaskId, newTaskColumnId, state.tasks, state.columns]);
+
     const handleSave = () => {
       onSave(
         { title, description, priority, dueDate, labels, subtasks },
@@ -316,7 +340,7 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, onDelete, onD
                     <div key={l} className="relative group">
                       <button 
                         onClick={() => toggleLabel(l)}
-                        className={`text-xs pl-2.5 pr-3 py-1 rounded-lg font-medium transition-colors ring-1 ring-inset ${labels.includes(l) ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 ring-emerald-500/40' : `${theme.subtle} ring-transparent`}`}>
+                        className={`text-xs pl-2.5 pr-3 py-1 rounded-lg font-medium transition-colors ring-1 ring-inset ${labels.includes(l) ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 ring-emerald-500/40' : `${theme.subtle} ring-transparent hover:bg-black/10 dark:hover:bg-white/10`}`}>
                         {l}
                       </button>
                       <button

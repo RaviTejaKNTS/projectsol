@@ -18,12 +18,15 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables')
   console.error('Please check your .env file or environment configuration')
+  console.error('Current values:', { supabaseUrl, supabaseAnonKey })
+  throw new Error('Supabase configuration is missing. Please check your environment variables.')
 }
 
-// Create a fallback client for development
+console.log('Supabase client initialized successfully')
+
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,

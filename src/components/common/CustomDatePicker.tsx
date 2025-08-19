@@ -113,7 +113,7 @@ export function CustomDatePicker({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between rounded-xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left ${theme.subtle} transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+        className={`w-full flex items-center justify-between rounded-xl border ${theme.border} ${theme.surface} px-3 py-2 text-sm text-left ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
       >
         <span className={value ? "" : theme.muted}>
           {formatDate(value)}
@@ -136,7 +136,7 @@ export function CustomDatePicker({
               <button
                 type="button"
                 onClick={() => navigateMonth(-1)}
-                className={`p-1 rounded-md ${theme.subtle}`}
+                className={`p-1 rounded-md ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10 transition-colors`}
               >
                 <ChevronDown className="h-4 w-4 rotate-90" />
               </button>
@@ -146,7 +146,7 @@ export function CustomDatePicker({
               <button
                 type="button"
                 onClick={() => navigateMonth(1)}
-                className={`p-1 rounded-md ${theme.subtle}`}
+                className={`p-1 rounded-md ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10 transition-colors`}
               >
                 <ChevronDown className="h-4 w-4 -rotate-90" />
               </button>
@@ -173,12 +173,12 @@ export function CustomDatePicker({
                 const getDayClassName = () => {
                   const baseClasses = `${compact ? 'h-6 text-xs' : 'h-8 text-sm'} rounded-md transition-colors`;
                   if (isToday) {
-                    return `${baseClasses} bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300`;
+                    return `${baseClasses} bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/40`;
                   }
                   if (isSelected) {
-                    return `${baseClasses} bg-primary text-white`;
+                    return `${baseClasses} bg-emerald-500 text-white hover:bg-emerald-600`;
                   }
-                  return `${baseClasses} ${theme.subtle}`;
+                  return `${baseClasses} ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10`;
                 };
                 
                 return (

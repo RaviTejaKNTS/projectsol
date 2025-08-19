@@ -378,7 +378,17 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                         </div>
                       </div>
                       <button
-                        onClick={signOut}
+                        onClick={async () => {
+                          try {
+                            console.log('Sign out button clicked');
+                            onClose(); // Close sidebar immediately for better UX
+                            await signOut();
+                            console.log('Sign out completed');
+                          } catch (error) {
+                            console.error('Sign out failed:', error);
+                            // Don't show error to user - signOut method handles this gracefully
+                          }
+                        }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                       >
                         Sign Out
