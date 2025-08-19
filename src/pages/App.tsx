@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo } from "react";
-import { useCloudState } from '../hooks/useCloudState';
+import { useMultiBoardCloudState } from '../hooks/useMultiBoardCloudState';
+import { useBoardsManager } from '../hooks/useBoardsManager';
 import { useAuth } from '../contexts/AuthProvider';
 import { TaskModal } from "../components/tasks/TaskModal";
 import { SettingsSidebar } from "../components/settings/SettingsSidebar";
@@ -51,8 +52,16 @@ function App() {
   } = useAppState();
 
   const { user, loading, signInWithGoogle, signInWithEmail } = useAuth();
-  const { status: saveStatus, forceSync } = useCloudState(state, setState, {}, 'projectsol-state');
+  const { boards, currentBoard, loading: boardsLoading } = useBoardsManager();
+  const { status: saveStatus, forceSync } = useMultiBoardCloudState(currentBoard?.id || null, state, setState);
   const prevUserRef = useRef(user);
+
+  // Update state when current board changes
+  useEffect(() => {
+    if (currentBoard?.data && currentBoard.data !== state) {
+      setState(currentBoard.data);
+    }
+  }, [currentBoard?.data, setState]);
 
   // Function declarations
   const openNewTask = (columnId: string | null = null) => {
@@ -120,7 +129,7 @@ function App() {
       }
       prevUserRef.current = user;
     }
-  }, [user, setState, setShowTaskModal, setShowSettingsSidebar, setShowProfileSidebar, setShowCompletedTasks, setShowDeletedTasks, setEditingTask, setNewTaskColumnId]);
+  }, [user, setState, setShowTaskModal, setShowSettingsSidebar, setShowProfileSidebar, setShowCompletedTasks, setShowDeletedTasks, setEditingTask, setNewTaskColumnId, setShouldAnimateColumns]);
 
   // Reset animation flag after columns have animated
   useEffect(() => {
@@ -192,6 +201,18 @@ function App() {
 
   return (
     <div className={`min-h-screen w-full ${theme.bg} overflow-x-hidden`}>
+      {/* Loading overlay for boards */}
+      {(loading || boardsLoading) && (
+        <div className="absolute inset-0 z-[110] bg-white/85 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin h-8 w-8 border-2 border-emerald-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              {loading ? 'Initializing...' : 'Loading boards...'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* App Header */}
       <AppHeader 
         state={state}

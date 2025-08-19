@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw } from 'lucide-react';
+import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Plus, Grid3X3, Edit3, Star, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthProvider';
+import { useBoardsManager } from '../hooks/useBoardsManager';
 
 interface ProfileSidebarProps {
   isOpen: boolean;
@@ -24,9 +25,17 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  const [currentPage, setCurrentPage] = useState<'profile' | 'delete' | 'connect-email'>('profile');
+  const [currentPage, setCurrentPage] = useState<'profile' | 'delete' | 'connect-email' | 'boards' | 'create-board'>('profile');
   const [isLinking, setIsLinking] = useState<string | null>(null);
   const [emailToLink, setEmailToLink] = useState('');
+  
+  // Board management
+  const { boards, currentBoard, loading: boardsLoading, createBoard, switchBoard, updateBoard, deleteBoard, setDefaultBoard } = useBoardsManager();
+  const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardDescription, setNewBoardDescription] = useState('');
+  const [editingBoard, setEditingBoard] = useState<string | null>(null);
+  const [editBoardName, setEditBoardName] = useState('');
+  const [editBoardDescription, setEditBoardDescription] = useState('');
 
   const getSyncIcon = () => {
     switch (saveStatus) {
@@ -73,6 +82,9 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
       setCurrentPage('profile');
       setIsLinking(null);
       setEmailToLink('');
+      setNewBoardName('');
+      setNewBoardDescription('');
+      setEditingBoard(null);
     }
   }, [isOpen, currentName]);
 
@@ -136,6 +148,47 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
       await unlinkProvider(provider);
     } catch (error) {
       console.error(`Failed to unlink ${provider} account:`, error);
+    }
+  };
+
+  const handleCreateBoard = async () => {
+    if (!newBoardName.trim()) return;
+    
+    const board = await createBoard(newBoardName, newBoardDescription);
+    if (board) {
+      setNewBoardName('');
+      setNewBoardDescription('');
+      setCurrentPage('boards');
+      // Optionally switch to the new board immediately
+      await switchBoard(board.id);
+    }
+  };
+
+  const handleEditBoard = (board: any) => {
+    setEditingBoard(board.id);
+    setEditBoardName(board.name);
+    setEditBoardDescription(board.description || '');
+  };
+
+  const handleSaveEditBoard = async () => {
+    if (!editingBoard || !editBoardName.trim()) return;
+    
+    await updateBoard(editingBoard, {
+      name: editBoardName,
+      description: editBoardDescription || undefined
+    });
+    
+    setEditingBoard(null);
+    setEditBoardName('');
+    setEditBoardDescription('');
+  };
+
+  const handleDeleteBoard = async (boardId: string) => {
+    if (!confirm('Are you sure you want to delete this board? This action cannot be undone.')) return;
+    
+    const success = await deleteBoard(boardId);
+    if (success && currentPage === 'boards') {
+      // Stay on boards page to see updated list
     }
   };
 
@@ -366,6 +419,54 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                     </div>
                   </div>
 
+                  {/* Boards Management */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <h3 className="text-sm font-medium mb-3">Boards</h3>
+                    
+                    <div className="space-y-3">
+                      {/* Current Board Display */}
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                            <Grid3X3 className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                              {currentBoard?.name || 'Loading...'}
+                            </p>
+                            <p className={`text-xs ${theme.muted}`}>Current board</p>
+                          </div>
+                        </div>
+                        {currentBoard?.is_default && (
+                          <Star className="h-4 w-4 text-emerald-500 fill-current" />
+                        )}
+                      </div>
+
+                      {/* Manage Boards Button */}
+                      <button
+                        onClick={() => setCurrentPage('boards')}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Grid3X3 className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium">Manage Boards</span>
+                          <span className={`text-xs px-2 py-1 rounded-full ${theme.muted} bg-black/5 dark:bg-white/10`}>
+                            {boards.length}
+                          </span>
+                        </div>
+                        <ArrowLeft className="h-4 w-4 text-zinc-400 rotate-180" />
+                      </button>
+
+                      {/* Create New Board Button */}
+                      <button
+                        onClick={() => setCurrentPage('create-board')}
+                        className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="text-sm font-medium">Create New Board</span>
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Sign Out */}
                   <div className="space-y-4">
@@ -422,6 +523,206 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                     </div>
                   </div>
                 </>
+              ) : currentPage === 'boards' ? (
+                /* Boards Management Page */
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
+                      <Grid3X3 className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">My Boards</h3>
+                    <p className={`text-sm ${theme.muted} mb-6`}>
+                      Manage your task boards and switch between them.
+                    </p>
+                  </div>
+
+                  {boardsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                      <p className={`text-sm ${theme.muted} mt-2`}>Loading boards...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {boards.map((board) => (
+                        <div
+                          key={board.id}
+                          className={`p-4 rounded-xl border transition-all ${
+                            currentBoard?.id === board.id
+                              ? 'border-emerald-500/30 bg-emerald-500/5'
+                              : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                          }`}
+                        >
+                          {editingBoard === board.id ? (
+                            <div className="space-y-3">
+                              <input
+                                type="text"
+                                value={editBoardName}
+                                onChange={(e) => setEditBoardName(e.target.value)}
+                                className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40`}
+                                placeholder="Board name"
+                                autoFocus
+                              />
+                              <textarea
+                                value={editBoardDescription}
+                                onChange={(e) => setEditBoardDescription(e.target.value)}
+                                className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none h-20`}
+                                placeholder="Board description (optional)"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleSaveEditBoard}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                                >
+                                  <Save className="h-3 w-3" />
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingBoard(null)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle}`}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                                  currentBoard?.id === board.id 
+                                    ? 'bg-emerald-500/20' 
+                                    : 'bg-blue-500/10'
+                                }`}>
+                                  <Grid3X3 className={`h-5 w-5 ${
+                                    currentBoard?.id === board.id 
+                                      ? 'text-emerald-600' 
+                                      : 'text-blue-600'
+                                  }`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium text-sm truncate">{board.name}</h4>
+                                    {board.is_default && (
+                                      <Star className="h-3 w-3 text-amber-500 fill-current flex-shrink-0" />
+                                    )}
+                                    {currentBoard?.id === board.id && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+                                        Active
+                                      </span>
+                                    )}
+                                  </div>
+                                  {board.description && (
+                                    <p className={`text-xs ${theme.muted} truncate`}>
+                                      {board.description}
+                                    </p>
+                                  )}
+                                  <p className={`text-xs ${theme.muted}`}>
+                                    Created {new Date(board.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {currentBoard?.id !== board.id && (
+                                  <button
+                                    onClick={() => switchBoard(board.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/25 transition-colors"
+                                  >
+                                    Switch
+                                  </button>
+                                )}
+                                <div className="relative group">
+                                  <button className={`p-1.5 rounded-lg ${theme.subtle} hover:bg-black/10 dark:hover:bg-white/10 transition-colors`}>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+                                  <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-zinc-800 border border-black/10 dark:border-white/10 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                                    <button
+                                      onClick={() => handleEditBoard(board)}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-2"
+                                    >
+                                      <Edit3 className="h-3 w-3" />
+                                      Edit
+                                    </button>
+                                    {!board.is_default && (
+                                      <button
+                                        onClick={() => setDefaultBoard(board.id)}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-black/5 dark:hover:bg-white/5 flex items-center gap-2"
+                                      >
+                                        <Star className="h-3 w-3" />
+                                        Set Default
+                                      </button>
+                                    )}
+                                    {boards.length > 1 && (
+                                      <button
+                                        onClick={() => handleDeleteBoard(board.id)}
+                                        className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                        Delete
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : currentPage === 'create-board' ? (
+                /* Create New Board Page */
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+                      <Plus className="h-8 w-8 text-emerald-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 mb-2">Create New Board</h3>
+                    <p className={`text-sm ${theme.muted} mb-6`}>
+                      Create a new board to organize different projects or workflows.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Board Name</label>
+                      <input
+                        type="text"
+                        value={newBoardName}
+                        onChange={(e) => setNewBoardName(e.target.value)}
+                        placeholder="e.g., Work Projects, Personal Tasks"
+                        className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+                        maxLength={50}
+                        autoFocus
+                      />
+                      <p className={`text-xs ${theme.muted} mt-1`}>
+                        {newBoardName.length}/50 characters
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Description (Optional)</label>
+                      <textarea
+                        value={newBoardDescription}
+                        onChange={(e) => setNewBoardDescription(e.target.value)}
+                        placeholder="Brief description of what this board is for..."
+                        className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none h-20`}
+                        maxLength={200}
+                      />
+                      <p className={`text-xs ${theme.muted} mt-1`}>
+                        {newBoardDescription.length}/200 characters
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={handleCreateBoard}
+                      disabled={!newBoardName.trim()}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Board
+                    </button>
+                  </div>
+                </div>
               ) : currentPage === 'connect-email' ? (
                 /* Connect Email Account Page */
                 <div className="space-y-6">
@@ -504,6 +805,16 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                     </button>
                   </div>
                 </div>
+              )}
+              {(currentPage === 'boards' || currentPage === 'create-board') && (
+                <button
+                  onClick={() => setCurrentPage(currentPage === 'create-board' ? 'boards' : 'profile')}
+                  className={`p-2 rounded-xl ${theme.subtle} transition-colors`}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                 currentPage === 'connect-email' ? 'Connect Email Account' :
+                 currentPage === 'boards' ? 'My Boards' :
+                 'Create New Board'}
               )}
             </div>
           </motion.div>

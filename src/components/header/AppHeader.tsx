@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Search, Filter, ChevronDown, Settings } from "lucide-react";
 import { ProfileButton } from '../ProfileButton';
+import { useBoardsManager } from '../../hooks/useBoardsManager';
 import { CustomDropdown } from "../common/CustomDropdown";
 import { PRIORITIES } from "../../utils/helpers";
 
@@ -31,6 +32,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const { currentBoard } = useBoardsManager();
 
   return (
     <div className={`sticky top-0 z-40 ${isDark ? "bg-zinc-950/95" : "bg-white/95"} backdrop-blur-md border-b ${border}`}>
@@ -41,7 +43,14 @@ export function AppHeader({
             alt="Project Sol Logo" 
             className="h-7 w-7 shrink-0"
           />
-          <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">Project Sol</h1>
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate">Project Sol</h1>
+            {currentBoard && (
+              <p className={`text-xs ${muted} truncate`}>
+                {currentBoard.name}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
