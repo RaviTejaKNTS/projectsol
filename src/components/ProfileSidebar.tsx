@@ -812,9 +812,10 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                   className={`p-2 rounded-xl ${theme.subtle} transition-colors`}
                 >
                   <ArrowLeft className="h-4 w-4" />
-                 currentPage === 'connect-email' ? 'Connect Email Account' :
-                 currentPage === 'boards' ? 'My Boards' :
-                 'Create New Board'}
+                  {currentPage === 'connect-email' ? 'Connect Email Account' :
+                   currentPage === 'boards' ? 'My Boards' :
+                   'Create New Board'}
+                </button>
               )}
             </div>
           </motion.div>
