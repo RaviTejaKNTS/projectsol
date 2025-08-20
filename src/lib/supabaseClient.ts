@@ -1,37 +1,31 @@
-
 /* src/lib/supabaseClient.ts */
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+// import type { Database } from '../types/supabase' // if you generated types
 
-// Extend ImportMeta interface for Vite env variables
-declare global {
-  interface ImportMeta {
-    readonly env: {
-      readonly VITE_SUPABASE_URL: string
-      readonly VITE_SUPABASE_ANON_KEY: string
-    }
-  }
+const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, DEV } = import.meta.env
+
+if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY) {
+  // Do not log secrets. Keep message generic.
+  throw new Error('Missing Supabase env vars: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY')
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+// Preserve a single client between HMR reloads in dev
+const globalForSupabase = globalThis as unknown as { supabase?: SupabaseClient /*<Database>*/ }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables')
-  console.error('Please check your .env file or environment configuration')
-  console.error('Current values:', { supabaseUrl, supabaseAnonKey })
-  throw new Error('Supabase configuration is missing. Please check your environment variables.')
-}
-
-console.log('Supabase client initialized successfully')
-
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
+export const supabase =
+  globalForSupabase.supabase ??
+  createClient/*<Database>*/(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      detectSessionInUrl: true, // keep true if using OAuth redirects
+      storage: window.localStorage,
+      storageKey: 'sb-pulsar-auth', // avoid collisions across apps
     },
-  }
-)
+    // global: { headers: { 'x-client-info': 'pulsar-web@1.0.0' } }, // optional trace
+  })
+
+if (DEV) {
+  globalForSupabase.supabase = supabase
+  console.info('[supabase] client initialized')
+}
