@@ -84,7 +84,6 @@ export function Column({
       canDrop: (args) => args.source.data.type === 'task',
       onDrop: (args) => {
         if (args.source.data.type === 'task') {
-          // if the drop target is a task card, we don't want to do anything
           if (args.location.current.dropTargets.find(target => target.data.type === 'task-card')) {
             return;
           }

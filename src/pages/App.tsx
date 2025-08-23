@@ -16,14 +16,6 @@ import { TaskActions } from "../utils/taskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
 import { defaultState } from '../utils/helpers';
 
-// ------------------------------------------------------------
-// Project Sol — Material‑ish Kanban To‑Do (Trello style)
-// Polished, responsive board with smooth dnd-kit drag/drop,
-// Material-esque surfaces, dark/light themes, filters,
-// labels, priorities, due dates, subtasks, import/export,
-// keyboard shortcuts (in Settings), and confetti on Done.
-// ------------------------------------------------------------
-
 function App() {
   const {
     state,
@@ -54,14 +46,12 @@ function App() {
   const { status: saveStatus, forceSync } = useCloudState(state, setState, {}, 'projectsol-state');
   const prevUserRef = useRef(user);
 
-  // Function declarations
   const openNewTask = (columnId: string | null = null) => {
     setNewTaskColumnId(columnId);
     setEditingTask(null);
     setShowTaskModal(true);
   };
 
-  // Column actions
   const columnActions = useColumnActions(state, setState);
   const {
     deleteColumn,
@@ -69,10 +59,8 @@ function App() {
     startAddColumn
   } = columnActions;
 
-  // Task actions
   const taskActions = new TaskActions({ state, setState, undoTimeoutRef, setUndoState });
 
-  // Keyboard shortcuts
   useKeyboardShortcuts({
     state,
     setState,
@@ -83,9 +71,7 @@ function App() {
   });
 
   const openEditTask = (taskId: string) => {
-    // Find which column this task belongs to
     const column = state.columns.find((col: any) => col.taskIds.includes(taskId));
-    // Get the full task data from state.tasks to ensure we have all properties
     const fullTask = state.tasks[taskId];
     const taskWithColumn = { ...fullTask, columnId: column?.id };
     setEditingTask(taskWithColumn);
@@ -97,19 +83,14 @@ function App() {
     taskActions.moveTask(taskId, fromColumnId, toColumnId, position || 0);
   };
 
-  // Handle user state changes (login/logout)
   useEffect(() => {
     if (prevUserRef.current !== user) {
       if (user && !prevUserRef.current) {
-        // User just logged in
         setShouldAnimateColumns(true);
       } else if (!user && prevUserRef.current) {
-        // User just logged out - clear application state
         setState(() => {
-          // Reset to default state
           return defaultState();
         });
-        // Close all modals and sidebars
         setShowTaskModal(false);
         setShowSettingsSidebar(false);
         setShowProfileSidebar(false);
@@ -122,29 +103,15 @@ function App() {
     }
   }, [user, setState, setShowTaskModal, setShowSettingsSidebar, setShowProfileSidebar, setShowCompletedTasks, setShowDeletedTasks, setEditingTask, setNewTaskColumnId]);
 
-  // Reset animation flag after columns have animated
   useEffect(() => {
     if (shouldAnimateColumns) {
       const timer = setTimeout(() => {
         setShouldAnimateColumns(false);
-      }, 800); // Allow time for all columns to animate
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, [shouldAnimateColumns]);
 
-  // Handle filter dropdown clicks outside
-  useEffect(() => {
-    const handleClickOutside = () => {
-      // This will be handled by AppHeader component
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [state.showFilters, setState]);
-
-
-  // Toggle theme function
   const toggleTheme = () => {
     setState((s: any) => ({
       ...s,
@@ -152,12 +119,10 @@ function App() {
     }));
   };
 
-  // Close completed tasks function
   const closeCompletedTasks = () => {
     setShowCompletedTasks(false);
   };
 
-  // UI helpers
   const isDark = state.theme === "dark";
 
   const allLabels = useMemo(() => {
@@ -311,21 +276,17 @@ function App() {
             const deletedTask = state.deletedTasks?.find((t: any) => t.id === taskId);
             if (deletedTask) {
               setState((s: any) => {
-                // Clean up the task data (remove deletion metadata)
                 const { deletedAt, originalColumnId, originalPosition, ...cleanTask } = deletedTask;
                 
-                // Find the original column or fallback to first column
                 let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
                 if (!targetColumn) {
-                  targetColumn = s.columns[0]; // Fallback to first column if original doesn't exist
+                  targetColumn = s.columns[0];
                 }
                 
-                // Insert task back at original position or at the end
                 const newTaskIds = [...targetColumn.taskIds];
                 const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
                 newTaskIds.splice(insertPosition, 0, taskId);
                 
-                // Update columns with restored task
                 const updatedColumns = s.columns.map((c: any) => 
                   c.id === targetColumn.id 
                     ? { ...c, taskIds: newTaskIds }

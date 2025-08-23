@@ -139,14 +139,15 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         const fromTaskId = args.source.data.taskId as string;
         const fromColumnId = args.source.data.columnId as string;
         
-        // If moving within the same column, adjust the index to account for the dragged task being removed
         let adjustedIndex = index;
         if (fromColumnId === columnId) {
-          // Find the current position of the dragged task
-          const draggedTaskIndex = taskIds.indexOf(fromTaskId);
-          // If the dragged task is above the drop target, subtract 1 from the target index
-          if (draggedTaskIndex !== -1 && draggedTaskIndex < index) {
-            adjustedIndex = index - 1;
+          const currentIndex = taskIds.indexOf(fromTaskId);
+          const targetIndex = taskIds.indexOf(id);
+          
+          if (fromTaskId === id) {
+            adjustedIndex = targetIndex;
+          } else if (fromTaskId !== id) {
+            adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
           }
         }
         

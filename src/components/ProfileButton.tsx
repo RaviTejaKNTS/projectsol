@@ -18,17 +18,14 @@ export const ProfileButton: React.FC<ProfileButtonProps> = ({ onOpenProfile }) =
   const [err, setErr] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
   useEffect(() => {
-    const onOpenLogin = () => setMenuOpen(true);
-    window.addEventListener('open-login', onOpenLogin as any);
-
-    const onClick = (e: MouseEvent) => {
-      if (!ref.current) return
-      if (!ref.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('click', onClick)
-    return () => { document.removeEventListener('click', onClick); window.removeEventListener('open-login', onOpenLogin as any); }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside)
+    return () => { document.removeEventListener('click', handleClickOutside); }
   }, [])
 
   const avatarUrl = profile?.avatar_url || user?.user_metadata?.picture

@@ -67,7 +67,6 @@ export function CustomDatePicker({
   };
 
   const handleDateSelect = (day: number) => {
-    // Create date string directly to avoid timezone issues
     const year = currentDate.year;
     const month = String(currentDate.month + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');

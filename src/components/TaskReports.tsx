@@ -25,7 +25,6 @@ export function TaskReports({ state, onOpenCompletedTasks, undoState, theme }: T
   const report = useMemo(() => generateTaskReport(stats), [stats]);
   const [timeRemaining, setTimeRemaining] = useState(10);
 
-  // Countdown timer for undo message
   useEffect(() => {
     if (undoState?.isVisible) {
       setTimeRemaining(10);
@@ -43,11 +42,9 @@ export function TaskReports({ state, onOpenCompletedTasks, undoState, theme }: T
     }
   }, [undoState?.isVisible]);
 
-  // Get completed tasks count
   const allTasks = Object.values(state.tasks) as any[];
   const completedTasksCount = allTasks.filter((task: any) => task.completed).length;
 
-  // Get appropriate icon based on report content
   const getReportIcon = (reportText: string) => {
     if (reportText.includes('overdue') || reportText.includes('deadline')) {
       return <Clock className="h-4 w-4 text-amber-500" />;
@@ -61,7 +58,6 @@ export function TaskReports({ state, onOpenCompletedTasks, undoState, theme }: T
     return <TrendingUp className="h-4 w-4 text-zinc-500" />;
   };
 
-  // Get appropriate styling based on report type
   const getReportStyling = (reportText: string) => {
     if (reportText.includes('overdue')) {
       return {

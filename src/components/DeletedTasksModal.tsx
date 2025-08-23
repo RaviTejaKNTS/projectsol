@@ -26,7 +26,6 @@ export function DeletedTasksModal({
 }: DeletedTasksModalProps) {
   if (!isOpen) return null;
 
-  // Sort deleted tasks by deletion date (latest first)
   const sortedDeletedTasks = [...deletedTasks].sort((a, b) => {
     const aTime = a.deletedAt || a.updatedAt || a.createdAt;
     const bTime = b.deletedAt || b.updatedAt || b.createdAt;

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { Search, Filter, ChevronDown, Settings } from "lucide-react";
 import { ProfileButton } from '../ProfileButton';
 import { CustomDropdown } from "../common/CustomDropdown";
@@ -31,6 +31,23 @@ export function AppHeader({
 }: AppHeaderProps) {
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (state.showFilters && 
+          filterButtonRef.current && 
+          filterDropdownRef.current &&
+          !filterButtonRef.current.contains(event.target as Node) &&
+          !filterDropdownRef.current.contains(event.target as Node)) {
+        setState((s: any) => ({ ...s, showFilters: false }));
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [state.showFilters, setState]);
 
   return (
     <div className={`sticky top-0 z-40 ${isDark ? "bg-zinc-950/95" : "bg-white/95"} backdrop-blur-md border-b ${border}`}>

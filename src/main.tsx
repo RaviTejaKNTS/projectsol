@@ -2,10 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './styles/index.css'
 import App from './pages/App'
-// If you placed AuthProvider at src/contexts/AuthProvider.tsx (from the auth kit), use this relative import:
 import { AuthProvider } from './contexts/AuthProvider'
 
-// Error boundary component for production
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error?: Error }

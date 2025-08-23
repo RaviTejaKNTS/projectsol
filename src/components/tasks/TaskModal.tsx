@@ -22,27 +22,24 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
     const [newLabel, setNewLabel] = useState("");
     const [columnId, setColumnId] = useState(editingTaskId?.columnId || newTaskColumnId || state.columns[0]?.id);
   
-    // Update state when editingTaskId or newTaskColumnId changes
     useEffect(() => {
-      if (editingTaskId) {
-        // Edit mode - load existing task data
+      if (editingTaskId?.taskId) {
         const task = state.tasks[editingTaskId.taskId];
-        setTitle(task?.title || "");
-        setDescription(task?.description || "");
-        setPriority(task?.priority || "Medium");
-        setDueDate(task?.dueDate ? task.dueDate.slice(0, 10) : "");
-        setLabels(task?.labels || []);
-        setSubtasks(task?.subtasks || []);
-        setColumnId(editingTaskId.columnId);
+        if (task) {
+          setTitle(task.title || "");
+          setDescription(task.description || "");
+          setPriority(task.priority || "Medium");
+          setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+          setLabels(task.labels || []);
+          setSubtasks(task.subtasks || []);
+        }
       } else {
-        // New task mode - reset to defaults
         setTitle("");
         setDescription("");
         setPriority("Medium");
         setDueDate("");
         setLabels([]);
         setSubtasks([]);
-        setColumnId(newTaskColumnId || state.columns[0]?.id);
       }
     }, [editingTaskId, newTaskColumnId, state.tasks, state.columns]);
 
@@ -69,9 +66,8 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
         const newLabelsForTask = [...labels, trimmedLabel];
         setLabels(newLabelsForTask);
 
-        // If the label is new globally, update the global list without closing the modal
         if (!state.labels.includes(trimmedLabel)) {
-          onSave({ labels: [...state.labels, trimmedLabel] }, null, null, true /* metadataOnly */);
+          onSave({ labels: [...state.labels, trimmedLabel] }, null, null, true);
         }
         
         setNewLabel("");

@@ -18,7 +18,6 @@ interface CompletedTasksModalProps {
 export function CompletedTasksModal({ isOpen, onClose, completedTasks, onRestoreTask, theme }: CompletedTasksModalProps) {
   if (!isOpen) return null;
 
-  // Sort completed tasks by completion date (latest first)
   const sortedCompletedTasks = [...completedTasks].sort((a, b) => {
     const aTime = a.completedAt || a.updatedAt || a.createdAt;
     const bTime = b.completedAt || b.updatedAt || b.createdAt;

@@ -27,7 +27,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // bootstrap session
   useEffect(() => {
     let mounted = true
     const init = async () => {
@@ -54,20 +53,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { sub?.subscription?.unsubscribe(); mounted = false }
   }, [])
 
-  // profile upsert on sign-in
   useEffect(() => {
     if (!user) { setProfile(null); return }
     let canceled = false
     const run = async () => {
       try {
-        // try fetch
         const { data: prof, error: profileError } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', user.id).maybeSingle()
         if (profileError) throw profileError
         if (canceled) return
         if (prof) {
           setProfile(prof as Profile)
         } else {
-          // create minimal profile
           const { error: upsertError } = await supabase.from('profiles').upsert({
             id: user.id,
             display_name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
@@ -110,9 +106,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
   
-  const signOut = async () => { 
+  const signOut = async () => {
     try {
-      console.log('Starting sign out process...')
       setError(null)
       
       // Clear local state immediately to provide immediate feedback
@@ -121,49 +116,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('Supabase sign out error:', error)
         // Don't throw here - we've already cleared local state
         // Just log the error but consider the sign out successful locally
         setError(null) // Clear any error since we're handling it gracefully
       }
-      console.log('Sign out completed')
     } catch (e: any) {
-      console.error('Sign out failed:', e)
       // Even if Supabase fails, we've cleared local state
       // This ensures the user appears signed out in the UI
       setError(null) // Don't show error to user for sign out
-      console.log('Sign out completed with local state cleared')
     }
   }
 
   const updateProfile = async (updates: { display_name?: string; avatar_url?: string }) => {
-    if (!user) throw new Error('Must be signed in to update profile')
     try {
       setError(null)
-      const { error } = await supabase.from('profiles').update(updates).eq('id', user.id)
+      const { error } = await supabase.from('profiles').update(updates).eq('id', user?.id)
       if (error) throw error
-      // Update local profile state
-      setProfile(prev => ({ ...prev, ...updates }))
+      setProfile(prev => prev ? { ...prev, ...updates } : null)
     } catch (e: any) {
       console.error('Profile update failed:', e)
       setError(e?.message || 'Failed to update profile')
-      throw e
     }
   }
 
   const deleteAccount = async () => {
-    if (!user) throw new Error('Must be signed in to delete account')
     try {
       setError(null)
-      // Delete profile first
-      await supabase.from('profiles').delete().eq('id', user.id)
-      // Delete user account
-      const { error } = await supabase.auth.admin.deleteUser(user.id)
-      if (error) throw error
+      const { error: profileError } = await supabase.from('profiles').delete().eq('id', user?.id)
+      if (profileError) throw profileError
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(user?.id!)
+      if (deleteError) throw deleteError
+      setUser(null)
+      setProfile(null)
     } catch (e: any) {
       console.error('Account deletion failed:', e)
       setError(e?.message || 'Failed to delete account')
-      throw e
     }
   }
 
@@ -182,23 +169,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
   const linkEmailAccount = async (email: string) => {
-    if (!user) throw new Error('Must be signed in to link account')
     try {
       setError(null)
-      // Send magic link to the email for account linking
-      const { error } = await supabase.auth.signInWithOtp({ 
-        email, 
-        options: { 
-          shouldCreateUser: false,
-          emailRedirectTo: window.location.origin 
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: window.location.origin
         }
       })
       if (error) throw error
-      // Note: User will need to click the magic link to complete the linking
     } catch (e: any) {
       console.error('Email account linking failed:', e)
-      setError(e?.message || 'Failed to link email account')
-      throw e
+      setError(e?.message || 'Failed to send magic link')
     }
   }
 
@@ -218,12 +200,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
-  const value: AuthCtx = useMemo(() => ({
+  const value = useMemo(() => ({
     user,
     profile,
+    inGuestMode: !user,
     loading,
     error,
-    inGuestMode: !user, // app is cloud-only; treat no-user as guest mode off
     signInWithGoogle,
     signInWithEmail,
     signOut,
@@ -231,8 +213,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteAccount,
     linkGoogleAccount,
     linkEmailAccount,
-    unlinkProvider,
-  }), [user, profile, loading, error])
+    unlinkProvider
+  }), [user, profile, loading, error, signInWithGoogle, signInWithEmail, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
