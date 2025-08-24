@@ -18,6 +18,7 @@ import { defaultState } from '../utils/helpers';
 // NEW (relational):
 import { useRelationalState } from "../hooks/useRelationalState";
 import { updateBoardSettings, retentionKeyToInterval, updateUserSettings } from "../data/settings";
+import { updateBoard } from "../data/boards";
 import { setCurrentBoardId } from '../state/currentBoard';
 
 function App() {
@@ -172,6 +173,27 @@ function App() {
     }
   };
 
+  const handleRenameBoard = async (boardId: string, newTitle: string) => {
+    if (!board || board.id !== boardId) return;
+    
+    try {
+      // Update board in database
+      await updateBoard(boardId as any, { title: newTitle });
+      
+      // Update local state
+      setState((s: any) => ({
+        ...s,
+        boardTitle: newTitle
+      }));
+      
+      // Refresh to get updated board data
+      await refresh();
+    } catch (error) {
+      console.error('Failed to rename board:', error);
+      throw error;
+    }
+  };
+
   const closeCompletedTasks = () => {
     setShowCompletedTasks(false);
   };
@@ -215,6 +237,7 @@ function App() {
         state={state}
         setState={setState}
         allLabels={allLabels}
+        board={board}
         isDark={isDark}
         border={theme.border}
         surface={theme.surface}
@@ -288,8 +311,15 @@ function App() {
       <SettingsSidebar
         isOpen={showSettingsSidebar}
         onClose={() => setShowSettingsSidebar(false)}
-        onExport={exportJSON}
-        onImport={importJSON}
+        board={board}
+        onRenameBoard={handleRenameBoard}
+        showCompleted={state.showCompleted ?? false}
+        onChangeShowCompleted={async (value: boolean) => {
+          if (board) {
+            await updateBoardSettings(board.id as any, { show_completed: value });
+            setState((s: any) => ({ ...s, showCompleted: value }));
+          }
+        }}
         deletedTasksSettings={state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' }}
         onChangeDeletedTasksSetting={(key: string, value: any) => {
           // Persist per-board settings in DB; mirror into local state for instant UI
@@ -344,6 +374,8 @@ function App() {
             shortcuts: { ...s.shortcuts, [key]: value }
           }));
         }}
+        onExport={exportJSON}
+        onImport={importJSON}
         theme={theme}
       />
 

@@ -1,13 +1,18 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Download, Trash2, ChevronRight } from 'lucide-react';
+import { X, Trash2, ChevronRight, Edit3, Save, X as XIcon, Check } from 'lucide-react';
 import { CustomDropdown } from '../common/CustomDropdown';
 
 interface SettingsSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onExport: () => void;
-  onImport: (file: File) => void;
+  board: {
+    id: string;
+    title: string;
+  } | null;
+  onRenameBoard: (boardId: string, newTitle: string) => Promise<void>;
+  showCompleted: boolean;
+  onChangeShowCompleted: (value: boolean) => Promise<void>;
   deletedTasksSettings: {
     enabled: boolean;
     retentionPeriod: string;
@@ -26,14 +31,18 @@ interface SettingsSidebarProps {
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   isOpen,
   onClose,
-  onExport,
-  onImport,
+  board,
+  onRenameBoard,
+  showCompleted,
+  onChangeShowCompleted,
   deletedTasksSettings,
   onChangeDeletedTasksSetting,
   onOpenDeletedTasks,
   theme
 }) => {
-  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [isEditingBoard, setIsEditingBoard] = useState(false);
+  const [boardTitle, setBoardTitle] = useState('');
+  const [isSavingBoard, setIsSavingBoard] = useState(false);
 
   return (
     <AnimatePresence>
@@ -71,6 +80,128 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
 
             {/* Content */}
             <div className="p-6 space-y-6">
+              {/* Board Settings */}
+              {board && (
+                <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                  <h3 className="text-sm font-medium mb-3">Board Settings</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Board Name */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                          <Edit3 className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Board Name</p>
+                          <p className={`text-xs ${theme.muted}`}>
+                            {isEditingBoard ? 'Click save to update the board name' : 'Rename your current board'}
+                          </p>
+                        </div>
+                      </div>
+                      {!isEditingBoard ? (
+                        <button
+                          onClick={() => {
+                            setIsEditingBoard(true);
+                            setBoardTitle(board.title);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
+                        >
+                          <Edit3 className="h-3 w-3" />
+                          Rename
+                        </button>
+                      ) : (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={async () => {
+                              const newTitle = boardTitle.trim();
+                              if (!newTitle || newTitle === board.title) {
+                                setIsEditingBoard(false);
+                                return;
+                              }
+                              setIsSavingBoard(true);
+                              try {
+                                await onRenameBoard(board.id, newTitle);
+                                setIsEditingBoard(false);
+                              } catch (error) {
+                                console.error('Failed to rename board:', error);
+                                // Keep editing mode on error
+                              } finally {
+                                setIsSavingBoard(false);
+                              }
+                            }}
+                            disabled={isSavingBoard || !boardTitle.trim() || boardTitle.trim() === board.title}
+                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 disabled:opacity-50 transition-colors"
+                          >
+                            <Save className="h-3 w-3" />
+                            {isSavingBoard ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsEditingBoard(false);
+                              setBoardTitle('');
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                          >
+                            <XIcon className="h-3 w-3" />
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Board Name Input */}
+                    {isEditingBoard && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Board Name</label>
+                        <input
+                          type="text"
+                          value={boardTitle}
+                          onChange={(e) => setBoardTitle(e.target.value)}
+                          className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40`}
+                          placeholder="Enter board name"
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Tasks Settings */}
+              <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                <h3 className="text-sm font-medium mb-3">Completed Tasks</h3>
+                
+                <div className="space-y-4">
+                  {/* Show/Hide Completed Tasks */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                        <Check className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Show Completed Tasks</p>
+                        <p className={`text-xs ${theme.muted}`}>
+                          {showCompleted ? 'Completed tasks are visible in columns' : 'Completed tasks are hidden from columns'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onChangeShowCompleted(!showCompleted)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        showCompleted ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showCompleted ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Deleted Tasks */}
               <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
                 <h3 className="text-sm font-medium mb-3">Deleted Tasks</h3>
@@ -142,64 +273,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
                 </div>
               </div>
 
-              {/* Import/Export Settings */}
-              <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
-                <h3 className="text-sm font-medium mb-3">Data Management</h3>
-                
-                <div className="space-y-3">
-                  {/* Import */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <Upload className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Import Data</p>
-                        <p className={`text-xs ${theme.muted}`}>
-                          Import tasks from JSON file
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => fileRef.current?.click()}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
-                    >
-                      <Upload className="h-3 w-3" />
-                      Import
-                    </button>
-                  </div>
 
-                  {/* Export */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <Download className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Export Data</p>
-                        <p className={`text-xs ${theme.muted}`}>
-                          Download tasks as JSON file
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={onExport}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
-                    >
-                      <Download className="h-3 w-3" />
-                      Export
-                    </button>
-                  </div>
-                </div>
-
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="application/json"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
-                />
-              </div>
             </div>
           </motion.div>
         </>

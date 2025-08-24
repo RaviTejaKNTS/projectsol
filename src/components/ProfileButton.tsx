@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { User } from 'lucide-react'
 import { useAuth } from '../contexts/AuthProvider'
 
 /**
@@ -56,7 +57,7 @@ export const ProfileButton: React.FC<ProfileButtonProps> = ({ onOpenProfile }) =
         {avatarUrl ? (
           <img src={avatarUrl} className="h-9 w-9 rounded-full object-cover" />
         ) : (
-          <span className="text-sm">👤</span>
+          <User className="h-5 w-5 text-zinc-500" />
         )}
       </button>
 

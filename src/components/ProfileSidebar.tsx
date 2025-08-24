@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Sun, Moon, Settings, ChevronRight } from 'lucide-react';
+import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Sun, Moon, Settings, ChevronRight, Upload, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthProvider';
 
 function ShortcutInput({ value, onChange, theme }: any) {
@@ -36,6 +36,8 @@ interface ProfileSidebarProps {
   isDark: boolean;
   shortcuts: any;
   onChangeShortcut: (key: string, value: string) => void;
+  onExport: () => void;
+  onImport: (file: File) => void;
   theme: {
     surface: string;
     border: string;
@@ -54,6 +56,8 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
   isDark,
   shortcuts,
   onChangeShortcut,
+  onExport,
+  onImport,
   theme 
 }) => {
   const { user, profile, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider } = useAuth();
@@ -66,6 +70,7 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
   const [isLinking, setIsLinking] = useState<string | null>(null);
   const [emailToLink, setEmailToLink] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   const shortcutItems = [
     { key: "newTask", label: "New task" },
@@ -482,6 +487,65 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Data Management */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <h3 className="text-sm font-medium mb-3">Data Management</h3>
+                    
+                    <div className="space-y-3">
+                      {/* Import */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                            <Upload className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">Import Data</p>
+                            <p className={`text-xs ${theme.muted}`}>
+                              Import tasks from JSON file
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => fileRef.current?.click()}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
+                        >
+                          <Upload className="h-3 w-3" />
+                          Import
+                        </button>
+                      </div>
+
+                      {/* Export */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                            <Download className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">Export Data</p>
+                            <p className={`text-xs ${theme.muted}`}>
+                              Download tasks as JSON file
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={onExport}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
+                        >
+                          <Download className="h-3 w-3" />
+                          Export
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept="application/json"
+                      className="hidden"
+                      onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
+                    />
                   </div>
 
                   {/* Sign Out */}

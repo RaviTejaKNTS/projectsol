@@ -63,6 +63,8 @@ export function BoardContainer({
     return ids.filter((id: string) => {
       const t = state.tasks[id];
       if (!t) return false;
+      // Hide completed tasks if showCompleted is false
+      if (!state.showCompleted && t.completed) return false;
       if (text && !(`${t.title} ${t.description}`.toLowerCase().includes(text.toLowerCase()))) return false;
       if (priorities.length && !priorities.includes(t.priority)) return false;
       if (labels.length && !labels.every((l: string) => t.labels.includes(l))) return false;

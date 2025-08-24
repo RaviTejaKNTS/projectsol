@@ -70,3 +70,11 @@ export async function createBoard(userId: UUID, title = 'Board'): Promise<Board>
     throw error;
   }
 }
+
+export async function updateBoard(boardId: UUID, patch: Partial<Board>): Promise<void> {
+  const { error } = await supabase
+    .from('boards')
+    .update(patch)
+    .eq('id', boardId);
+  if (error) throw error;
+}

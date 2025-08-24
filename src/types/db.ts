@@ -105,6 +105,9 @@ export type LegacyState = {
   // Deleted tasks settings panel expects this object
   deletedTasksSettings?: { enabled: boolean; retentionPeriod: '1hour'|'24hours'|'7days'|'30days'|'forever' };
   
+  // Board settings
+  showCompleted?: boolean;
+  
   // UI state properties that the components expect
   filters: { text: string; priorities: string[]; labels: string[]; due: string };
   theme: string;

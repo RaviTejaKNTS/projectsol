@@ -86,6 +86,7 @@ export function toLegacyState(
       enabled: boardSettings.save_deleted,
       retentionPeriod: retentionKey,
     },
+    showCompleted: boardSettings.show_completed,
     // Add missing properties that the UI expects
     filters: { text: "", priorities: [], labels: [], due: "all" },
     theme: "light", // Will be overridden by user settings
