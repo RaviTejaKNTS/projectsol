@@ -11,6 +11,7 @@ interface SettingsSidebarProps {
     title: string;
   } | null;
   onRenameBoard: (boardId: string, newTitle: string) => Promise<void>;
+  onDeleteBoard: (boardId: string) => Promise<void>;
   showCompleted: boolean;
   onChangeShowCompleted: (value: boolean) => Promise<void>;
   deletedTasksSettings: {
@@ -33,6 +34,7 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   onClose,
   board,
   onRenameBoard,
+  onDeleteBoard,
   showCompleted,
   onChangeShowCompleted,
   deletedTasksSettings,
@@ -43,6 +45,9 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   const [isEditingBoard, setIsEditingBoard] = useState(false);
   const [boardTitle, setBoardTitle] = useState('');
   const [isSavingBoard, setIsSavingBoard] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isDeletingBoard, setIsDeletingBoard] = useState(false);
 
   return (
     <AnimatePresence>
@@ -162,6 +167,84 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
                           placeholder="Enter board name"
                           autoFocus
                         />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delete Board */}
+                  <div className="pt-4 border-t border-black/10 dark:border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                          <Trash2 className="h-5 w-5 text-red-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-red-600 dark:text-red-400">Delete Board</p>
+                          <p className={`text-xs ${theme.muted}`}>
+                            Permanently delete this board and all its data
+                          </p>
+                        </div>
+                      </div>
+                      {!showDeleteConfirmation ? (
+                        <button
+                          onClick={() => setShowDeleteConfirmation(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
+                      ) : (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={async () => {
+                              if (deleteConfirmation !== 'DELETE') return;
+                              setIsDeletingBoard(true);
+                              try {
+                                await onDeleteBoard(board.id);
+                                setShowDeleteConfirmation(false);
+                                setDeleteConfirmation('');
+                              } catch (error) {
+                                console.error('Failed to delete board:', error);
+                                // Keep confirmation mode on error
+                              } finally {
+                                setIsDeletingBoard(false);
+                              }
+                            }}
+                            disabled={isDeletingBoard || deleteConfirmation !== 'DELETE'}
+                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs bg-red-500/15 border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/25 disabled:opacity-50 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            {isDeletingBoard ? 'Deleting...' : 'Confirm'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowDeleteConfirmation(false);
+                              setDeleteConfirmation('');
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                          >
+                            <XIcon className="h-3 w-3" />
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delete Confirmation Input */}
+                    {showDeleteConfirmation && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-red-600 dark:text-red-400">Type DELETE to confirm</label>
+                        <input
+                          type="text"
+                          value={deleteConfirmation}
+                          onChange={(e) => setDeleteConfirmation(e.target.value)}
+                          className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/40 border-red-500/20`}
+                          placeholder="DELETE"
+                          autoFocus
+                        />
+                        <p className={`text-xs ${theme.muted}`}>
+                          This action cannot be undone. All tasks, columns, and board data will be permanently deleted.
+                        </p>
                       </div>
                     )}
                   </div>

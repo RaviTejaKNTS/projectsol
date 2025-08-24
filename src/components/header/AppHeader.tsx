@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { Search, Filter, ChevronDown, Kanban } from "lucide-react";
+import { Search, Filter, Kanban } from "lucide-react";
 import { ProfileButton } from '../ProfileButton';
 import { CustomDropdown } from "../common/CustomDropdown";
 import { PRIORITIES } from "../../utils/helpers";
@@ -82,11 +82,10 @@ export function AppHeader({
               ref={filterButtonRef}
               type="button"
               onClick={() => setState((s: any) => ({ ...s, showFilters: !s.showFilters }))}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 py-2 px-2 rounded-2xl transition-colors ${state.showFilters ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : `${surface} ${muted}`}`}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center py-2 px-2 rounded-2xl transition-colors ${state.showFilters ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-[#303032] text-white'}`}
               title="Filters"
             >
               <Filter className="h-2 w-2" />
-              <ChevronDown className="h-2 w-2" />
             </button>
             
             {/* Filters dropdown */}

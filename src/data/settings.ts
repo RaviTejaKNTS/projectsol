@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import type { BoardSettings, UUID } from '../types/db';
+import type { BoardSettings, UserSettings, UUID } from '../types/db';
 
 export async function getBoardSettings(boardId: UUID): Promise<BoardSettings> {
   const { data, error } = await supabase
@@ -39,22 +39,31 @@ export function intervalToRetentionKey(interval: string): '1hour'|'24hours'|'7da
   return '7days';
 }
 
-export async function getUserSettings(userId: UUID): Promise<any> {
+export async function getUserSettings(userId: UUID): Promise<UserSettings | null> {
   const { data, error } = await supabase
     .from('user_settings')
     .select('*')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw error;
-  return data;
+  return data as UserSettings | null;
 }
 
-export async function updateUserSettings(userId: UUID, patch: any): Promise<void> {
+export async function updateUserSettings(userId: UUID, patch: Partial<UserSettings>): Promise<void> {
   const { error } = await supabase
     .from('user_settings')
     .upsert({ user_id: userId, ...patch })
     .eq('user_id', userId);
   if (error) throw error;
+}
+
+export async function getCurrentBoardId(userId: UUID): Promise<UUID | null> {
+  const settings = await getUserSettings(userId);
+  return settings?.current_board_id || null;
+}
+
+export async function setCurrentBoardId(userId: UUID, boardId: UUID | null): Promise<void> {
+  await updateUserSettings(userId, { current_board_id: boardId });
 }
 
 

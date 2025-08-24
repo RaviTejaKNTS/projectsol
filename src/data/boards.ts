@@ -13,6 +13,16 @@ export async function getBoardsByUser(userId: UUID): Promise<Board[]> {
   return data ?? [];
 }
 
+export async function getBoardById(boardId: UUID): Promise<Board | null> {
+  const { data, error } = await supabase
+    .from('boards')
+    .select('*')
+    .eq('id', boardId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function createBoard(userId: UUID, title = 'Board'): Promise<Board> {
   try {
     const { data: board, error: boardError } = await supabase
@@ -77,4 +87,19 @@ export async function updateBoard(boardId: UUID, patch: Partial<Board>): Promise
     .update(patch)
     .eq('id', boardId);
   if (error) throw error;
+}
+
+export async function deleteBoard(boardId: UUID): Promise<void> {
+  try {
+    // Delete board (this will cascade to columns and tasks due to foreign key constraints)
+    const { error } = await supabase
+      .from('boards')
+      .delete()
+      .eq('id', boardId);
+    
+    if (error) throw error;
+  } catch (error) {
+    console.error('deleteBoard failed:', error);
+    throw error;
+  }
 }

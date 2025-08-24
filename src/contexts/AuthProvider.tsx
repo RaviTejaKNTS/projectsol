@@ -9,6 +9,8 @@ interface AuthCtx {
   inGuestMode: boolean
   loading: boolean
   error: string | null
+  showAccountLinkingModal: boolean
+  accountLinkingInfo: { email: string; provider: 'google' | 'email' } | null
   signInWithGoogle: () => Promise<void>
   signInWithEmail: (email: string) => Promise<void>
   signOut: () => Promise<void>
@@ -17,6 +19,8 @@ interface AuthCtx {
   linkGoogleAccount: () => Promise<void>
   linkEmailAccount: (email: string) => Promise<void>
   unlinkProvider: (provider: string) => Promise<void>
+  linkAccountWithProvider: (provider: 'google' | 'email', email?: string) => Promise<void>
+  closeAccountLinkingModal: () => void
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
@@ -26,6 +30,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAccountLinkingModal, setShowAccountLinkingModal] = useState(false)
+  const [accountLinkingInfo, setAccountLinkingInfo] = useState<{ email: string; provider: 'google' | 'email' } | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -104,7 +110,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       setError(null)
-      await supabase.auth.signInWithOAuth({ provider: 'google', options: { scopes: 'email profile', redirectTo: window.location.origin } })
+      
+      // Sign in with Google - Supabase will handle account linking automatically
+      const { error } = await supabase.auth.signInWithOAuth({ 
+        provider: 'google', 
+        options: { 
+          scopes: 'email profile', 
+          redirectTo: window.location.origin,
+          // This ensures the user is redirected back to link accounts if needed
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
+        } 
+      })
+      
+      if (error) {
+        // Check if this is a duplicate account error
+        if (error.message.includes('already exists') || error.message.includes('duplicate') || error.message.includes('email')) {
+          // Extract email from error message or use a default
+          const email = error.message.match(/email\s+([^\s]+)/i)?.[1] || 'this email';
+          setAccountLinkingInfo({ email, provider: 'google' });
+          setShowAccountLinkingModal(true);
+        } else {
+          throw error;
+        }
+      }
     } catch (e: any) {
       console.error('Google sign-in failed:', e)
       setError(e?.message || 'Failed to sign in with Google')
@@ -115,7 +146,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithEmail = async (email: string) => {
     try {
       setError(null)
-      await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+      
+      // First, check if a user with this email already exists
+      // We'll use a custom function to check this
+      const { data: existingUser, error: checkError } = await supabase
+        .rpc('get_user_by_email', { user_email: email });
+      
+      if (existingUser && !checkError) {
+        // User exists, show account linking modal
+        setAccountLinkingInfo({ email, provider: 'email' });
+        setShowAccountLinkingModal(true);
+        return;
+      }
+      
+      // Send magic link - Supabase will automatically handle existing vs new users
+      const { error } = await supabase.auth.signInWithOtp({ 
+        email, 
+        options: { 
+          emailRedirectTo: window.location.origin
+        } 
+      })
+      
+      if (error) {
+        // Check if this is a duplicate account error
+        if (error.message.includes('already exists') || error.message.includes('duplicate')) {
+          setAccountLinkingInfo({ email, provider: 'email' });
+          setShowAccountLinkingModal(true);
+        } else {
+          throw error;
+        }
+      }
     } catch (e: any) {
       console.error('Email sign-in failed:', e)
       setError(e?.message || 'Failed to send magic link')
@@ -216,12 +276,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const linkAccountWithProvider = async (provider: 'google' | 'email', email?: string) => {
+    if (!user) throw new Error('Must be signed in to link account')
+    try {
+      setError(null)
+      if (provider === 'google') {
+        await linkGoogleAccount()
+      } else if (provider === 'email') {
+        if (!email) throw new Error('Email is required for email account linking')
+        await linkEmailAccount(email)
+      }
+    } catch (e: any) {
+      console.error(`Linking ${provider} account failed:`, e)
+      setError(e?.message || `Failed to link ${provider} account`)
+      throw e
+    }
+  }
+
+  const closeAccountLinkingModal = () => {
+    setShowAccountLinkingModal(false)
+    setAccountLinkingInfo(null)
+  }
+
   const value = useMemo(() => ({
     user,
     profile,
     inGuestMode: !user,
     loading,
     error,
+    showAccountLinkingModal,
+    accountLinkingInfo,
     signInWithGoogle,
     signInWithEmail,
     signOut,
@@ -229,8 +313,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteAccount,
     linkGoogleAccount,
     linkEmailAccount,
-    unlinkProvider
-  }), [user, profile, loading, error, signInWithGoogle, signInWithEmail, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider])
+    unlinkProvider,
+    linkAccountWithProvider,
+    closeAccountLinkingModal
+  }), [user, profile, loading, error, showAccountLinkingModal, accountLinkingInfo, signInWithGoogle, signInWithEmail, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider, linkAccountWithProvider, closeAccountLinkingModal])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

@@ -32,6 +32,8 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // This ensures only one account per email
+      flowType: 'pkce',
     },
   }
 )

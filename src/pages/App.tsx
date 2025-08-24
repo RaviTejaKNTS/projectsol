@@ -13,13 +13,15 @@ import { useColumnActions } from "../hooks/useColumnActions";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { TaskActions } from "../utils/taskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
+import { AccountLinkingModal } from '../components/auth/AccountLinkingModal';
 import { defaultState } from '../utils/helpers';
 
 // NEW (relational):
 import { useRelationalState } from "../hooks/useRelationalState";
 import { updateBoardSettings, retentionKeyToInterval, updateUserSettings } from "../data/settings";
-import { updateBoard } from "../data/boards";
-import { setCurrentBoardId } from '../state/currentBoard';
+import { updateBoard, createBoard, deleteBoard } from "../data/boards";
+import { setCurrentBoardId, useCurrentBoard } from '../state/currentBoard';
+import { supabase } from '../lib/supabaseClient';
 
 function App() {
   const {
@@ -45,15 +47,112 @@ function App() {
     theme
   } = useAppState();
 
-  const { user, loading, signInWithGoogle, signInWithEmail } = useAuth();
+  const { user, loading, signInWithGoogle, signInWithEmail, showAccountLinkingModal, accountLinkingInfo, closeAccountLinkingModal } = useAuth();
+
+  // Get current board ID from Zustand store
+  const currentBoardId = useCurrentBoard(state => state.boardId);
 
   // Relational data loader
   const { board, state: loaded, refresh } = useRelationalState(user?.id || null);
 
   // Local save status (driven by DAL-backed actions)
   const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('saved');
+  const [userBoards, setUserBoards] = useState<Array<{ id: string; title: string }>>([]);
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
 
   const prevUserRef = useRef(user);
+
+  // Debug board ID changes
+  useEffect(() => {
+    console.log('App: currentBoardId changed to:', currentBoardId);
+  }, [currentBoardId]);
+
+  // Ensure persisted board ID is respected on page load
+  useEffect(() => {
+    if (user?.id && currentBoardId) {
+      console.log('Page loaded with persisted board ID:', currentBoardId);
+      // The useRelationalState hook will handle loading this board
+    }
+  }, [user?.id, currentBoardId]);
+
+  // Load user boards when user changes
+  useEffect(() => {
+    const loadUserBoards = async () => {
+      if (!user?.id) {
+        setUserBoards([]);
+        return;
+      }
+      
+      try {
+        console.log('Loading user boards for user:', user.id);
+        const { data: boards, error } = await supabase
+          .from('boards')
+          .select('id, title')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+        
+        if (error) throw error;
+        console.log('Loaded boards:', boards);
+        setUserBoards(boards || []);
+      } catch (error) {
+        console.error('Failed to load user boards:', error);
+        setUserBoards([]);
+      }
+    };
+
+    loadUserBoards();
+  }, [user?.id]);
+
+  // Real-time subscription to boards table for automatic updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('Setting up real-time subscription for boards...');
+    
+    const subscription = supabase
+      .channel('boards_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'boards',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Boards table change detected:', payload);
+          
+          // Refresh the boards list when changes occur
+          refreshUserBoards();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('Cleaning up boards subscription...');
+      subscription.unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Function to manually refresh user boards
+  const refreshUserBoards = async () => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('Manually refreshing user boards...');
+      const { data: boards, error } = await supabase
+        .from('boards')
+        .select('id, title')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      console.log('Refreshed boards:', boards);
+      setUserBoards(boards || []);
+    } catch (error) {
+      console.error('Failed to refresh user boards:', error);
+    }
+  };
 
   // Hydrate legacy UI state once relational data arrives
   useEffect(() => {
@@ -173,23 +272,107 @@ function App() {
     }
   };
 
-  const handleRenameBoard = async (boardId: string, newTitle: string) => {
-    if (!board || board.id !== boardId) return;
+  const handleRenameBoard = async (newTitle: string) => {
+    if (!board) return;
     
     try {
-      // Update board in database
-      await updateBoard(boardId as any, { title: newTitle });
-      
-      // Update local state
-      setState((s: any) => ({
-        ...s,
-        boardTitle: newTitle
-      }));
-      
-      // Refresh to get updated board data
-      await refresh();
+      await updateBoard(board.id, { title: newTitle });
+      // Refresh to get updated data
+      refresh();
     } catch (error) {
       console.error('Failed to rename board:', error);
+    }
+  };
+
+  const handleCreateBoard = async (boardName?: string) => {
+    if (!user?.id) return;
+    
+    setIsCreatingBoard(true);
+    try {
+      console.log('Creating new board for user:', user.id);
+      const boardTitle = boardName || `Board ${userBoards.length + 1}`;
+      const newBoard = await createBoard(user.id, boardTitle);
+      console.log('New board created:', newBoard);
+      
+      // Optimistically update the UI
+      setUserBoards(prev => [...prev, { id: newBoard.id, title: newBoard.title }]);
+      
+      // Set as current board
+      setCurrentBoardId(newBoard.id);
+      
+      // Save to database
+      await updateUserSettings(user.id, { current_board_id: newBoard.id });
+      console.log('Saved new board as current in database');
+      
+      // Refresh data
+      await refresh();
+      await refreshUserBoards();
+      
+      console.log('Board creation completed successfully');
+    } catch (error) {
+      console.error('Failed to create board:', error);
+      // Revert optimistic update
+      setUserBoards(prev => prev.filter(b => b.id !== 'temp'));
+    } finally {
+      setIsCreatingBoard(false);
+    }
+  };
+
+  const handleSwitchBoard = async (boardId: string) => {
+    console.log('Switching to board:', boardId);
+    setCurrentBoardId(boardId);
+    // Also save to database
+    if (user?.id) {
+      try {
+        await updateUserSettings(user.id, { current_board_id: boardId });
+        console.log('Saved current board ID to database:', boardId);
+      } catch (error) {
+        console.error('Failed to save current board ID to database:', error);
+      }
+    }
+    await refresh();
+  };
+
+  const handleDeleteBoard = async (boardId: string) => {
+    if (!user?.id || !board) return;
+    
+    try {
+      console.log('Deleting board:', boardId);
+      
+      // Delete the board from database
+      await deleteBoard(boardId);
+      console.log('Board deleted from database');
+      
+      // Remove from user boards list
+      setUserBoards(prev => prev.filter(b => b.id !== boardId));
+      
+      // If this was the current board, switch to another board or clear current
+      if (currentBoardId === boardId) {
+        const remainingBoards = userBoards.filter(b => b.id !== boardId);
+        if (remainingBoards.length > 0) {
+          // Switch to the first remaining board
+          const nextBoard = remainingBoards[0];
+          setCurrentBoardId(nextBoard.id);
+          await updateUserSettings(user.id, { current_board_id: nextBoard.id });
+          console.log('Switched to next board:', nextBoard.id);
+        } else {
+          // No boards left, clear current board
+          setCurrentBoardId(null);
+          await updateUserSettings(user.id, { current_board_id: null });
+          console.log('No boards left, cleared current board');
+        }
+      }
+      
+      // Close settings sidebar
+      setShowSettingsSidebar(false);
+      
+      // Refresh data
+      await refresh();
+      await refreshUserBoards();
+      
+      console.log('Board deletion completed successfully');
+    } catch (error) {
+      console.error('Failed to delete board:', error);
       throw error;
     }
   };
@@ -313,6 +496,7 @@ function App() {
         onClose={() => setShowSettingsSidebar(false)}
         board={board}
         onRenameBoard={handleRenameBoard}
+        onDeleteBoard={handleDeleteBoard}
         showCompleted={state.showCompleted ?? false}
         onChangeShowCompleted={async (value: boolean) => {
           if (board) {
@@ -376,8 +560,23 @@ function App() {
         }}
         onExport={exportJSON}
         onImport={importJSON}
+        onCreateBoard={handleCreateBoard}
+        onSwitchBoard={handleSwitchBoard}
+        currentBoardId={currentBoardId}
+        userBoards={userBoards}
+        isCreatingBoard={isCreatingBoard}
         theme={theme}
       />
+
+      {/* Account Linking Modal */}
+      {showAccountLinkingModal && accountLinkingInfo && (
+        <AccountLinkingModal
+          isOpen={showAccountLinkingModal}
+          onClose={closeAccountLinkingModal}
+          existingEmail={accountLinkingInfo.email}
+          newProvider={accountLinkingInfo.provider}
+        />
+      )}
 
       {/* Dev Tests */}
       <DevTests />

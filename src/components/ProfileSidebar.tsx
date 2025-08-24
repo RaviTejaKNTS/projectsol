@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Sun, Moon, Settings, ChevronRight, Upload, Download } from 'lucide-react';
+import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Sun, Moon, Settings, ChevronRight, Upload, Download, Plus, Kanban } from 'lucide-react';
 import { useAuth } from '../contexts/AuthProvider';
 
 function ShortcutInput({ value, onChange, theme }: any) {
@@ -38,6 +38,11 @@ interface ProfileSidebarProps {
   onChangeShortcut: (key: string, value: string) => void;
   onExport: () => void;
   onImport: (file: File) => void;
+  onCreateBoard?: (name: string) => Promise<void>;
+  onSwitchBoard?: (boardId: string) => void;
+  currentBoardId?: string | null;
+  userBoards?: Array<{ id: string; title: string }>;
+  isCreatingBoard?: boolean;
   theme: {
     surface: string;
     border: string;
@@ -58,18 +63,29 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
   onChangeShortcut,
   onExport,
   onImport,
+  onCreateBoard,
+  onSwitchBoard,
+  currentBoardId,
+  userBoards = [],
+  isCreatingBoard,
   theme 
 }) => {
   const { user, profile, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider } = useAuth();
+  
+  // Debug logging for board switching
+  console.log('ProfileSidebar render - currentBoardId:', currentBoardId);
+  console.log('ProfileSidebar render - userBoards:', userBoards);
+  
   const [displayName, setDisplayName] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
-  const [currentPage, setCurrentPage] = useState<'profile' | 'delete' | 'connect-email'>('profile');
+  const [currentPage, setCurrentPage] = useState<'profile' | 'delete' | 'connect-email' | 'create-board'>('profile');
   const [isLinking, setIsLinking] = useState<string | null>(null);
   const [emailToLink, setEmailToLink] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const shortcutItems = [
@@ -218,9 +234,9 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
             className={`fixed right-0 top-0 bottom-0 z-[101] w-full max-w-md ${theme.surface} border-l ${theme.border} shadow-2xl overflow-y-auto`}
           >
             {/* Header */}
-            <div className="sticky top-0 z-10 flex items-center justify-between p-6 pb-4 bg-inherit border-b border-black/5 dark:border-white/5">
+            <div className="flex items-center justify-between p-6 border-b border-black/10 dark:border-white/10">
               <div className="flex items-center gap-3">
-                {(currentPage === 'delete' || currentPage === 'connect-email') && (
+                {currentPage !== 'profile' && (
                   <button
                     onClick={() => setCurrentPage('profile')}
                     className={`p-2 rounded-xl ${theme.subtle} transition-colors`}
@@ -231,6 +247,7 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                 <h2 className="text-lg font-semibold">
                   {currentPage === 'profile' ? 'Account Settings' : 
                    currentPage === 'delete' ? 'Delete Account' : 
+                   currentPage === 'create-board' ? 'Create New Board' :
                    'Connect Email Account'}
                 </h2>
               </div>
@@ -548,6 +565,75 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                     />
                   </div>
 
+                  {/* Board Management */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <h3 className="text-sm font-medium mb-3">Board Management</h3>
+                    
+                    <div className="space-y-3">
+                      {/* Create New Board */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center">
+                            <Plus className="h-5 w-5 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">Create New Board</p>
+                            <p className={`text-xs ${theme.muted}`}>
+                              Start a new board for organizing your tasks
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setCurrentPage('create-board')}
+                          disabled={isCreatingBoard}
+                          className={`flex items-center justify-center h-8 w-8 rounded-lg text-emerald-500 border border-emerald-500/30 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Switch Boards */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <Kanban className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">Switch Boards</p>
+                            <p className={`text-xs ${theme.muted}`}>
+                              {userBoards.length > 0 
+                                ? `You have ${userBoards.length} board${userBoards.length > 1 ? 's' : ''}`
+                                : 'No boards yet - create your first one!'
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {userBoards.length > 0 && (
+                          <div className="ml-11 space-y-2">
+                            {userBoards.map((board) => (
+                              <button
+                                key={board.id}
+                                onClick={() => onSwitchBoard?.(board.id)}
+                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
+                                  currentBoardId === board.id
+                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                                    : `${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10`
+                                }`}
+                              >
+                                <Kanban className="h-4 w-4" />
+                                <span className="truncate">{board.title}</span>
+                                {currentBoardId === board.id && (
+                                  <div className="ml-auto h-2 w-2 rounded-full bg-emerald-500" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Sign Out */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-3 rounded-xl border border-black/10 dark:border-white/10">
@@ -644,6 +730,53 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                     >
                       <Mail className="h-4 w-4" />
                       {isLinking === 'email' ? 'Sending Magic Link...' : 'Send Magic Link'}
+                    </button>
+                  </div>
+                </div>
+              ) : currentPage === 'create-board' ? (
+                /* Create New Board Page */
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <div className="h-16 w-16 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
+                      <Plus className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-2">Create New Board</h3>
+                    <p className={`text-sm ${theme.muted} mb-6`}>
+                      Enter a name for your new board.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Board Name</label>
+                      <input
+                        type="text"
+                        value={newBoardName}
+                        onChange={(e) => setNewBoardName(e.target.value)}
+                        placeholder="My New Board"
+                        className={`w-full rounded-xl ${theme.input} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40`}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={async () => {
+                        if (!newBoardName.trim()) return;
+                        setIsLinking('create-board');
+                        try {
+                          await onCreateBoard?.(newBoardName.trim());
+                          setNewBoardName('');
+                          setCurrentPage('profile');
+                        } catch (error) {
+                          console.error('Failed to create board:', error);
+                        } finally {
+                          setIsLinking(null);
+                        }
+                      }}
+                      disabled={!newBoardName.trim() || isLinking === 'create-board'}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {isLinking === 'create-board' ? 'Creating Board...' : 'Create Board'}
                     </button>
                   </div>
                 </div>

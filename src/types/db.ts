@@ -74,6 +74,15 @@ export type TaskLabel = {
   label_id: UUID;
 };
 
+export type UserSettings = {
+  user_id: UUID;
+  theme: 'light' | 'dark';
+  shortcuts: Record<string, string>;
+  current_board_id: UUID | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // Legacy state shape consumed by the current UI
 export type LegacyTask = {
   id: string;
