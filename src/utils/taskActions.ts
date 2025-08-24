@@ -175,14 +175,33 @@ export class TaskActions {
       return;
     }
 
-    // UPDATE
+    // UPDATE - Preserve current position
     await this.saving(async () => {
+      // Get current task to preserve position
+      const { data: currentTask, error: fetchError } = await supabase
+        .from('tasks')
+        .select('position, column_id')
+        .eq('id', taskId!)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
       const patch: any = {
         title: (payload.title || 'Untitled').trim(),
         description: payload.description?.trim() || null,
         priority: payload.priority || 'Medium',
         due_at: payload.dueDate || null,
+        // Explicitly preserve the current position and column
+        position: currentTask.position,
+        column_id: currentTask.column_id,
       };
+      
+      console.log('Updating task while preserving position:', { 
+        taskId: taskId, 
+        currentPosition: currentTask.position, 
+        currentColumn: currentTask.column_id 
+      });
+      
       const { error } = await supabase.from('tasks').update(patch).eq('id', taskId!);
       if (error) throw error;
     });
@@ -202,22 +221,33 @@ export class TaskActions {
       console.log('No labels to process for task update');
     }
 
-    this.setState((s: any) => ({
-      ...s,
-      tasks: {
-        ...s.tasks,
-        [taskId!]: {
-          ...s.tasks[taskId!],
-          title: (payload.title || 'Untitled').trim(),
-          description: payload.description?.trim() || '',
-          labels: (payload.labels || []).slice().sort(),
-          priority: payload.priority || 'Medium',
-          dueDate: payload.dueDate || '',
-          subtasks: (payload.subtasks || []).map((st: any) => ({ id: st.id || '', title: st.title, completed: !!st.completed })),
-          updatedAt: Date.now(),
+    this.setState((s: any) => {
+      // Log the current column structure before update
+      const currentColumn = s.columns.find((c: any) => c.taskIds.includes(taskId!));
+      console.log('State update - preserving task position:', {
+        taskId: taskId!,
+        currentColumnId: currentColumn?.id,
+        currentPosition: currentColumn?.taskIds.indexOf(taskId!),
+        taskTitle: payload.title
+      });
+      
+      return {
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [taskId!]: {
+            ...s.tasks[taskId!],
+            title: (payload.title || 'Untitled').trim(),
+            description: payload.description?.trim() || '',
+            labels: (payload.labels || []).slice().sort(),
+            priority: payload.priority || 'Medium',
+            dueDate: payload.dueDate || '',
+            subtasks: (payload.subtasks || []).map((st: any) => ({ id: st.id || '', title: st.title, completed: !!st.completed })),
+            updatedAt: Date.now(),
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   deleteTask = async (taskId: string) => {
