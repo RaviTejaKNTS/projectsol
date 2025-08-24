@@ -37,7 +37,7 @@ export function useAppState() {
     }
   }, [state]);
 
-  // Theme only (cloud-only mode)
+  // Theme management
   useEffect(() => {
     document.documentElement.classList.toggle("dark", state.theme === "dark");
   }, [state.theme]);

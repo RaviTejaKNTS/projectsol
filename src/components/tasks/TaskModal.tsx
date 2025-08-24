@@ -5,7 +5,7 @@ import { CustomDropdown } from "../common/CustomDropdown";
 import { CustomDatePicker } from "../common/CustomDatePicker";
 import { PRIORITIES, priorityColor } from "../../utils/helpers";
 
-export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumnId, onDelete, onDeleteLabel, onCompleteTask, theme }: any) {
+export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumnId, onDelete, onDeleteLabel, onCompleteTask, theme, allLabels, onUpdateTaskLabels }: any) {
     const isEdit = Boolean(editingTaskId?.taskId);
     const task = isEdit ? state.tasks[editingTaskId.taskId] : null;
     const [title, setTitle] = useState(task?.title || "");
@@ -44,6 +44,9 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
     }, [editingTaskId, newTaskColumnId, state.tasks, state.columns]);
 
     const handleSave = () => {
+      console.log('TaskModal handleSave called with labels:', labels);
+      console.log('Full payload:', { title, description, priority, dueDate, labels, subtasks });
+      
       onSave(
         { title, description, priority, dueDate, labels, subtasks },
         columnId,
@@ -53,24 +56,66 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
     };
   
     const toggleLabel = (label: string) => {
-      setLabels(currentLabels => 
-        currentLabels.includes(label) 
+      console.log('toggleLabel called for:', label);
+      console.log('Current labels before toggle:', labels);
+      
+      setLabels(currentLabels => {
+        const newLabels = currentLabels.includes(label) 
           ? currentLabels.filter(l => l !== label) 
-          : [...currentLabels, label]
-      );
+          : [...currentLabels, label];
+        console.log('New labels after toggle:', newLabels);
+        
+        // Immediately save the label change for existing tasks to prevent real-time override
+        if (editingTaskId?.taskId && onUpdateTaskLabels) {
+          console.log('Immediately updating task labels:', editingTaskId.taskId, newLabels);
+          onUpdateTaskLabels(editingTaskId.taskId, newLabels);
+        }
+        
+        return newLabels;
+      });
     };
 
     const addLabel = () => {
+      console.log('addLabel called with newLabel:', newLabel);
+      console.log('Current labels before add:', labels);
+      console.log('Available board labels:', allLabels);
+      
       const trimmedLabel = newLabel.trim().slice(0, 20);
-      if (trimmedLabel && !labels.includes(trimmedLabel)) {
+      if (trimmedLabel && !allLabels.includes(trimmedLabel)) {
+        console.log('Adding new label to board:', trimmedLabel);
+        
+        // First, add the new label to the current task's labels immediately
         const newLabelsForTask = [...labels, trimmedLabel];
+        console.log('Adding new label to task immediately:', newLabelsForTask);
+        console.log('Previous labels:', labels);
+        console.log('New labels array:', newLabelsForTask);
         setLabels(newLabelsForTask);
-
-        if (!state.labels.includes(trimmedLabel)) {
-          onSave({ labels: [...state.labels, trimmedLabel] }, null, null, true);
+        
+        // Then add new label to board's global label collection
+        onSave({ labels: [...allLabels, trimmedLabel] }, null, null, true);
+        
+        // For existing tasks, immediately save the task labels to prevent real-time override
+        if (editingTaskId?.taskId && onUpdateTaskLabels) {
+          console.log('Immediately saving new label to task in database:', editingTaskId.taskId, newLabelsForTask);
+          onUpdateTaskLabels(editingTaskId.taskId, newLabelsForTask);
         }
         
         setNewLabel("");
+      } else if (trimmedLabel && allLabels.includes(trimmedLabel)) {
+        console.log('Label already exists in board, adding to task:', trimmedLabel);
+        // Label exists in board, just add it to current task
+        const newLabelsForTask = [...labels, trimmedLabel];
+        setLabels(newLabelsForTask);
+        
+        // For existing tasks, immediately save the task labels
+        if (editingTaskId?.taskId && onUpdateTaskLabels) {
+          console.log('Immediately saving existing label to task in database:', editingTaskId.taskId, newLabelsForTask);
+          onUpdateTaskLabels(editingTaskId.taskId, newLabelsForTask);
+        }
+        
+        setNewLabel("");
+      } else {
+        console.log('Label not added - empty or invalid');
       }
     };
 
@@ -332,7 +377,7 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
               <div>
                 <label className={`text-xs uppercase ${theme.muted}`}>Labels</label>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {state.labels.map((l: string) => (
+                  {allLabels.map((l: string) => (
                     <div key={l} className="relative group">
                       <button 
                         onClick={() => toggleLabel(l)}

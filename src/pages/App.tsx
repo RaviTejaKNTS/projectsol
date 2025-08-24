@@ -1,5 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
-import { useCloudState } from '../hooks/useCloudState';
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useAuth } from '../contexts/AuthProvider';
 import { TaskModal } from "../components/tasks/TaskModal";
 import { SettingsSidebar } from "../components/settings/SettingsSidebar";
@@ -15,6 +14,11 @@ import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { TaskActions } from "../utils/taskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
 import { defaultState } from '../utils/helpers';
+
+// NEW (relational):
+import { useRelationalState } from "../hooks/useRelationalState";
+import { updateBoardSettings, retentionKeyToInterval, updateUserSettings } from "../data/settings";
+import { setCurrentBoardId } from '../state/currentBoard';
 
 function App() {
   const {
@@ -37,14 +41,52 @@ function App() {
     newTaskColumnId,
     setNewTaskColumnId,
     undoState,
-    setUndoState,
-    undoTimeoutRef,
     theme
   } = useAppState();
 
   const { user, loading, signInWithGoogle, signInWithEmail } = useAuth();
-  const { status: saveStatus, forceSync } = useCloudState(state, setState, {}, 'projectsol-state');
+
+  // Relational data loader
+  const { board, state: loaded, refresh } = useRelationalState(user?.id || null);
+
+  // Local save status (driven by DAL-backed actions)
+  const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'error'>('saved');
+
   const prevUserRef = useRef(user);
+
+  // Hydrate legacy UI state once relational data arrives
+  useEffect(() => {
+    console.log('Legacy state hydration effect:', { loaded, hasLoaded: !!loaded, loadedColumns: loaded?.columns?.length, loadedTasks: loaded?.tasks ? Object.keys(loaded.tasks).length : 0 });
+    if (loaded) {
+      console.log('Setting state with loaded data');
+      setState(loaded);
+    }
+  }, [loaded, setState]);
+
+  // After loading board, set it in context:
+  useEffect(() => {
+    console.log('Board state changed:', { board, boardId: board?.id, hasBoard: !!board });
+    if (board) {
+      setCurrentBoardId(board.id);
+      console.log('Current board ID set to:', board.id);
+    } else {
+      console.log('No board available, clearing current board ID');
+      setCurrentBoardId(null);
+    }
+  }, [board]);
+
+  // Pass board to all action hooks:
+  const columnActions = useColumnActions(state, setState, { 
+    setSaveStatus 
+  });
+  const {
+    deleteColumn,
+    moveColumn,
+    startAddColumn
+  } = columnActions;
+
+  // Task actions now write to DB under the hood (no UI changes)
+  const taskActions = new TaskActions({ state, setState, setSaveStatus });
 
   const openNewTask = (columnId: string | null = null) => {
     setNewTaskColumnId(columnId);
@@ -52,21 +94,12 @@ function App() {
     setShowTaskModal(true);
   };
 
-  const columnActions = useColumnActions(state, setState);
-  const {
-    deleteColumn,
-    moveColumn,
-    startAddColumn
-  } = columnActions;
-
-  const taskActions = new TaskActions({ state, setState, undoTimeoutRef, setUndoState });
-
   useKeyboardShortcuts({
     state,
     setState,
     openNewTask,
     startAddColumn,
-    deleteTask: taskActions.deleteTask,
+    deleteTask: (taskId: string) => board && taskActions.deleteTask(taskId),
     taskActions
   });
 
@@ -80,6 +113,16 @@ function App() {
   };
 
   const moveTask = (taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
+    console.log('moveTask called in App.tsx:', { taskId, fromColumnId, toColumnId, position, board, boardId: board?.id });
+    if (!board) {
+      console.error('Cannot move task: no board available');
+      return;
+    }
+    if (!board.id) {
+      console.error('Cannot move task: board has no ID');
+      return;
+    }
+    console.log('Moving task with board ID:', board.id);
     taskActions.moveTask(taskId, fromColumnId, toColumnId, position || 0);
   };
 
@@ -101,7 +144,7 @@ function App() {
       }
       prevUserRef.current = user;
     }
-  }, [user, setState, setShowTaskModal, setShowSettingsSidebar, setShowProfileSidebar, setShowCompletedTasks, setShowDeletedTasks, setEditingTask, setNewTaskColumnId]);
+  }, [user, setState, setShowTaskModal, setShowSettingsSidebar, setShowProfileSidebar, setShowCompletedTasks, setShowDeletedTasks, setEditingTask, setNewTaskColumnId, setShouldAnimateColumns]);
 
   useEffect(() => {
     if (shouldAnimateColumns) {
@@ -110,13 +153,23 @@ function App() {
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [shouldAnimateColumns]);
+  }, [shouldAnimateColumns, setShouldAnimateColumns]);
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
+    const newTheme = state.theme === 'dark' ? 'light' : 'dark';
     setState((s: any) => ({
       ...s,
-      theme: s.theme === 'dark' ? 'light' : 'dark'
+      theme: newTheme
     }));
+    
+    // Sync theme to database
+    try {
+      if (user?.id) {
+        await updateUserSettings(user.id, { theme: newTheme });
+      }
+    } catch (error) {
+      console.error('Failed to sync theme to database:', error);
+    }
   };
 
   const closeCompletedTasks = () => {
@@ -195,13 +248,13 @@ function App() {
         onOpenNewTask={openNewTask}
         onOpenEditTask={openEditTask}
         onOpenCompletedTasks={() => setShowCompletedTasks(true)}
-        onDeleteColumn={deleteColumn}
+        onDeleteColumn={(id: string) => board && deleteColumn(id)}
         onStartRenameColumn={() => {}}
         onCancelRenameColumn={() => {}}
         onCommitRenameColumn={() => {}}
         onMoveTask={moveTask}
-        onMoveColumn={moveColumn}
-        onCompleteTask={(taskId: string) => taskActions.completeTask(taskId)}
+        onMoveColumn={(from: string, to: string) => board && moveColumn(from, to)}
+        onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
         onStartAddColumn={startAddColumn}
         onCommitAddColumn={() => {}}
         onCancelAddColumn={() => {}}
@@ -213,18 +266,20 @@ function App() {
         <TaskModal
           onClose={() => setShowTaskModal(false)}
           onSave={(payload: any, columnId: string | null, taskId?: string, metadataOnly?: boolean) => {
+            if (!board) return;
             taskActions.createOrUpdateTask(payload, columnId, taskId || null, metadataOnly);
             if (!metadataOnly) {
               setShowTaskModal(false);
             }
           }}
+          onUpdateTaskLabels={(taskId: string, labels: string[]) => board && taskActions.updateTaskLabels(taskId, labels)}
           state={state}
           editingTaskId={editingTask ? { taskId: editingTask.id, columnId: editingTask.columnId } : null}
           newTaskColumnId={editingTask ? null : newTaskColumnId}
           allLabels={allLabels}
-          onDelete={taskActions.deleteTask}
-          onDeleteLabel={taskActions.deleteLabel}
-          onCompleteTask={taskActions.completeTask}
+          onDelete={(taskId: string) => board && taskActions.deleteTask(taskId)}
+          onDeleteLabel={(name: string) => board && taskActions.deleteLabel(name)}
+          onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
           theme={theme}
         />
       )}
@@ -233,19 +288,15 @@ function App() {
       <SettingsSidebar
         isOpen={showSettingsSidebar}
         onClose={() => setShowSettingsSidebar(false)}
-        onToggleTheme={toggleTheme}
-        isDark={isDark}
         onExport={exportJSON}
         onImport={importJSON}
-        shortcuts={state.shortcuts}
-        onChangeShortcut={(key: string, value: string) => {
-          setState((s: any) => ({
-            ...s,
-            shortcuts: { ...s.shortcuts, [key]: value }
-          }));
-        }}
         deletedTasksSettings={state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' }}
         onChangeDeletedTasksSetting={(key: string, value: any) => {
+          // Persist per-board settings in DB; mirror into local state for instant UI
+          if (board) {
+            if (key === 'enabled') updateBoardSettings(board.id as any, { save_deleted: !!value });
+            if (key === 'retentionPeriod') updateBoardSettings(board.id as any, { deleted_retention: retentionKeyToInterval(value) });
+          }
           setState((s: any) => ({
             ...s,
             deletedTasksSettings: { ...s.deletedTasksSettings, [key]: value }
@@ -261,7 +312,7 @@ function App() {
           isOpen={showCompletedTasks}
           onClose={closeCompletedTasks}
           completedTasks={Object.values(state.tasks).filter((task: any) => task.completed)}
-          onRestoreTask={taskActions.restoreTask}
+          onRestoreTask={(taskId: string) => board && taskActions.restoreTask(taskId)}
           theme={theme}
         />
       )}
@@ -272,42 +323,8 @@ function App() {
           isOpen={showDeletedTasks}
           onClose={() => setShowDeletedTasks(false)}
           deletedTasks={state.deletedTasks || []}
-          onRestoreTask={(taskId: string) => {
-            const deletedTask = state.deletedTasks?.find((t: any) => t.id === taskId);
-            if (deletedTask) {
-              setState((s: any) => {
-                const { deletedAt, originalColumnId, originalPosition, ...cleanTask } = deletedTask;
-                
-                let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
-                if (!targetColumn) {
-                  targetColumn = s.columns[0];
-                }
-                
-                const newTaskIds = [...targetColumn.taskIds];
-                const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
-                newTaskIds.splice(insertPosition, 0, taskId);
-                
-                const updatedColumns = s.columns.map((c: any) => 
-                  c.id === targetColumn.id 
-                    ? { ...c, taskIds: newTaskIds }
-                    : c
-                );
-                
-                return {
-                  ...s,
-                  tasks: { ...s.tasks, [taskId]: cleanTask },
-                  columns: updatedColumns,
-                  deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
-                };
-              });
-            }
-          }}
-          onPermanentlyDeleteTask={(taskId: string) => {
-            setState((s: any) => ({
-              ...s,
-              deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
-            }));
-          }}
+          onRestoreTask={(taskId: string) => board && taskActions.restoreDeletedTask(taskId)}
+          onPermanentlyDeleteTask={(taskId: string) => board && taskActions.permanentlyDeleteTask(taskId)}
           theme={theme}
         />
       )}
@@ -317,7 +334,16 @@ function App() {
         isOpen={showProfileSidebar}
         onClose={() => setShowProfileSidebar(false)}
         saveStatus={saveStatus as any}
-        onForceSync={forceSync}
+        onForceSync={refresh}
+        onToggleTheme={toggleTheme}
+        isDark={isDark}
+        shortcuts={state.shortcuts}
+        onChangeShortcut={(key: string, value: string) => {
+          setState((s: any) => ({
+            ...s,
+            shortcuts: { ...s.shortcuts, [key]: value }
+          }));
+        }}
         theme={theme}
       />
 

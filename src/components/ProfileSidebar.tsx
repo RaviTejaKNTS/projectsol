@@ -1,13 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw } from 'lucide-react';
+import { X, User, Mail, Calendar, Trash2, Save, ArrowLeft, Link, Unlink, LogOut, RefreshCw, Sun, Moon, Settings, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthProvider';
+
+function ShortcutInput({ value, onChange, theme }: any) {
+  return (
+    <input
+      readOnly
+      value={value}
+      onKeyDown={(e) => {
+        e.preventDefault();
+        const combo = serializeCombo(e.nativeEvent as any);
+        onChange(combo);
+      }}
+      className={`w-32 text-xs px-2 py-1 rounded-xl border ${theme.border} ${theme.surface}`}
+    />
+  );
+}
+
+function serializeCombo(e: { key: string; altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) {
+  const parts: string[] = [];
+  if (e.altKey) parts.push("alt");
+  if (e.shiftKey) parts.push("shift");
+  if (e.ctrlKey || e.metaKey) parts.push("ctrl");
+  parts.push(e.key.toLowerCase());
+  return parts.join("+");
+}
 
 interface ProfileSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error';
   onForceSync?: () => void;
+  onToggleTheme: () => void;
+  isDark: boolean;
+  shortcuts: any;
+  onChangeShortcut: (key: string, value: string) => void;
   theme: {
     surface: string;
     border: string;
@@ -17,7 +45,17 @@ interface ProfileSidebarProps {
   };
 }
 
-export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose, saveStatus = 'idle', onForceSync, theme }) => {
+export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ 
+  isOpen, 
+  onClose, 
+  saveStatus = 'idle', 
+  onForceSync, 
+  onToggleTheme,
+  isDark,
+  shortcuts,
+  onChangeShortcut,
+  theme 
+}) => {
   const { user, profile, signOut, updateProfile, deleteAccount, linkGoogleAccount, linkEmailAccount, unlinkProvider } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -27,6 +65,24 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
   const [currentPage, setCurrentPage] = useState<'profile' | 'delete' | 'connect-email'>('profile');
   const [isLinking, setIsLinking] = useState<string | null>(null);
   const [emailToLink, setEmailToLink] = useState('');
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  const shortcutItems = [
+    { key: "newTask", label: "New task" },
+    { key: "newColumn", label: "New list/column" },
+    { key: "search", label: "Focus search" },
+    { key: "toggleFilters", label: "Toggle filters panel" },
+    { key: "moveTaskUp", label: "Move task within column ↑" },
+    { key: "moveTaskDown", label: "Move task within column ↓" },
+    { key: "moveTaskLeft", label: "Move task across columns ←" },
+    { key: "deleteTask", label: "Delete task" },
+    { key: "completeTask", label: "Mark completed" },
+    { key: "priority1", label: "Set priority Urgent" },
+    { key: "priority2", label: "Set priority High" },
+    { key: "priority3", label: "Set priority Medium" },
+    { key: "priority4", label: "Set priority Low" },
+    { key: "setDueDate", label: "Set due date" },
+  ];
 
   const getSyncIcon = () => {
     switch (saveStatus) {
@@ -111,7 +167,7 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
     }
   };
 
-  const handleLinkAccount = async (provider: 'google') => {
+  const handleLinkAccount = async (provider: string) => {
     setIsLinking(provider);
     try {
       if (provider === 'google') {
@@ -125,17 +181,13 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
   };
 
   const handleUnlinkAccount = async (provider: string) => {
-    if (connectedProviders.length <= 1) {
-      alert('Cannot disconnect your only sign-in method. Please connect another account first.');
-      return;
-    }
-    
-    if (!confirm(`Disconnect your ${provider} account?`)) return;
-    
+    setIsLinking(provider);
     try {
       await unlinkProvider(provider);
     } catch (error) {
       console.error(`Failed to unlink ${provider} account:`, error);
+    } finally {
+      setIsLinking(null);
     }
   };
 
@@ -271,10 +323,10 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                       <div>
                         <p className="text-sm font-medium">{getSyncText()}</p>
                         <p className={`text-xs ${theme.muted}`}>
-                          {saveStatus === 'saved' ? 'All changes saved to cloud' : 
+                          {saveStatus === 'saved' ? 'All changes saved' : 
                            saveStatus === 'saving' ? 'Saving changes...' :
                            saveStatus === 'error' ? 'Failed to sync - click to retry' :
-                           'Click to sync with cloud'}
+                           'Click to sync'}
                         </p>
                       </div>
                     </div>
@@ -366,6 +418,71 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ isOpen, onClose,
                     </div>
                   </div>
 
+                  {/* Appearance Settings */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <h3 className="text-sm font-medium mb-3">Appearance</h3>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                          {isDark ? <Sun className="h-5 w-5 text-amber-600" /> : <Moon className="h-5 w-5 text-slate-600" />}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Theme</p>
+                          <p className={`text-xs ${theme.muted}`}>
+                            {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={onToggleTheme}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
+                      >
+                        {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                        {isDark ? "Light" : "Dark"} mode
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Keyboard Shortcuts */}
+                  <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
+                    <div 
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => setShowShortcuts(!showShortcuts)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center">
+                          <Settings className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Keyboard Shortcuts</p>
+                          <p className={`text-xs ${theme.muted}`}>
+                            Customize keyboard shortcuts
+                          </p>
+                        </div>
+                      </div>
+                      <button className={`p-2 rounded-lg ${theme.subtle} transition-colors`}>
+                        <ChevronRight className={`h-4 w-4 transition-transform ${showShortcuts ? 'rotate-90' : ''}`} />
+                      </button>
+                    </div>
+
+                    {showShortcuts && (
+                      <div className="mt-4 pt-4 border-t border-black/10 dark:border-white/10">
+                        <div className="space-y-3">
+                          {shortcutItems.map((item) => (
+                            <div key={item.key} className="flex items-center justify-between gap-3">
+                              <span className="text-sm flex-1">{item.label}</span>
+                              <ShortcutInput
+                                value={shortcuts[item.key]}
+                                onChange={(v: string) => onChangeShortcut(item.key, v)}
+                                theme={theme}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Sign Out */}
                   <div className="space-y-4">

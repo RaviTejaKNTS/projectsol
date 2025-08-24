@@ -1,382 +1,448 @@
-import { uid } from "./helpers";
+// src/utils/taskActions.ts
+import { supabase } from '../lib/supabaseClient';
+import { ensureLabelIds, setTaskLabels, deleteLabelEverywhere } from '../data/labels';
+import { replaceSubtasks, syncTaskPositionsAfterMove } from '../data/tasks';
+import type { UUID } from '../types/db';
 import confetti from 'canvas-confetti';
+import { getCurrentBoardId } from '../state/currentBoard';
+
+async function resolveBoardIdByColumn(columnId: string): Promise<string> {
+  const { data, error } = await supabase.from('board_columns').select('board_id').eq('id', columnId).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Column not found');
+  return data.board_id as string;
+}
+
+async function resolveBoardIdByTask(taskId: string): Promise<string> {
+  const { data, error } = await supabase.from('tasks').select('board_id').eq('id', taskId).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('Task not found');
+  return data.board_id as string;
+}
 
 export interface TaskActionsProps {
   state: any;
   setState: (updater: (state: any) => any) => void;
-  undoTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
-  setUndoState: (undoState: any) => void;
+  setSaveStatus?: (s: 'idle'|'saving'|'saved'|'error') => void;
 }
 
 export class TaskActions {
   private state: any;
   private setState: (updater: (state: any) => any) => void;
-  private undoTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
-  private setUndoState: (undoState: any) => void;
+  private setSaveStatus?: (s: 'idle'|'saving'|'saved'|'error') => void;
 
-  constructor({ state, setState, undoTimeoutRef, setUndoState }: TaskActionsProps) {
+  constructor({ state, setState, setSaveStatus }: TaskActionsProps) {
     this.state = state;
     this.setState = setState;
-    this.undoTimeoutRef = undoTimeoutRef;
-    this.setUndoState = setUndoState;
+    this.setSaveStatus = setSaveStatus;
+    
+    // Debug logging
+    console.log('TaskActions initialized with state:', { 
+      hasState: !!state, 
+      columnsCount: state?.columns?.length,
+      tasksCount: state?.tasks ? Object.keys(state.tasks).length : 0,
+      currentBoardId: getCurrentBoardId()
+    });
   }
 
-  createOrUpdateTask = (payload: any, columnId: string | null, taskId: string | null = null, metadataOnly = false) => {
-    this.setState((s: any) => {
-      if (metadataOnly) {
-        const newLabels = payload.labels || [];
-        const existingLabels = new Set(s.labels || []);
-        const uniqueNewLabels = newLabels.filter((label: string) => !existingLabels.has(label));
-        if (uniqueNewLabels.length > 0) {
-          return { ...s, labels: [...(s.labels || []), ...uniqueNewLabels] };
-        }
-        return s; // No changes
-      }
-
-      const id = taskId || uid();
-      const newTask = {
-        id,
-        title: payload.title?.trim() || "Untitled",
-        description: payload.description?.trim() || "",
-        labels: payload.labels || [],
-        priority: payload.priority || "Medium",
-        dueDate: payload.dueDate || "",
-        createdAt: taskId ? s.tasks[taskId].createdAt : Date.now(),
-        updatedAt: Date.now(),
-        completed: taskId ? s.tasks[taskId].completed || false : false,
-        completedAt: taskId ? s.tasks[taskId].completedAt || null : null,
-        lastColumnId: taskId ? s.tasks[taskId].lastColumnId || null : null,
-        subtasks: payload.subtasks || [],
-      };
-      const tasks = { ...s.tasks, [id]: newTask } as any;
-      let columns = s.columns;
-      
-      if (!taskId && columnId) {
-        // New task: add to the specified column
-        columns = s.columns.map((c: any) => (c.id === columnId ? { ...c, taskIds: [id, ...c.taskIds] } : c));
-      } else if (taskId && columnId) {
-        // Existing task: handle column change
-        const oldColumnId = s.columns.find((c: any) => c.taskIds.includes(taskId))?.id;
-        if (oldColumnId && oldColumnId !== columnId) {
-          // Remove from old column
-          columns = s.columns.map((c: any) => 
-            c.id === oldColumnId ? { ...c, taskIds: c.taskIds.filter((tid: string) => tid !== taskId) } : c
-          );
-          // Add to new column
-          columns = columns.map((c: any) => 
-            c.id === columnId ? { ...c, taskIds: [id, ...c.taskIds] } : c
-          );
-        }
-      }
-      
-      const newLabels = payload.labels || [];
-      const existingLabels = new Set(s.labels || []);
-      const uniqueNewLabels = newLabels.filter((label: string) => !existingLabels.has(label));
-
-      let updatedGlobalLabels = s.labels;
-      if (uniqueNewLabels.length > 0) {
-        updatedGlobalLabels = [...(s.labels || []), ...uniqueNewLabels];
-      }
-
-      return { ...s, tasks, columns, labels: updatedGlobalLabels };
-    });
+  private saving = async <T>(fn: () => Promise<T>): Promise<T> => {
+    this.setSaveStatus?.('saving');
+    try { const out = await fn(); this.setSaveStatus?.('saved'); return out; }
+    catch (e) { this.setSaveStatus?.('error'); throw e; }
   };
 
-  deleteTask = (taskId: string) => {
-    const task = this.state.tasks[taskId];
-    if (!task) return;
+  private async getBoardIdForCreate(columnId: string | null): Promise<string> {
+    const globalId = getCurrentBoardId();
+    if (globalId) return globalId;
+    if (!columnId) throw new Error('Missing columnId');
+    return resolveBoardIdByColumn(columnId);
+  }
 
-    const deletedTasksSettings = this.state.deletedTasksSettings || { enabled: false, retentionPeriod: '7days' };
+  private async getBoardIdForTask(taskId: string): Promise<string> {
+    const globalId = getCurrentBoardId();
+    if (globalId) return globalId;
+    return resolveBoardIdByTask(taskId);
+  }
+
+  createOrUpdateTask = async (payload: any, columnId: string | null, taskId: string | null = null, metadataOnly = false) => {
+    console.log('createOrUpdateTask called with:', { payload, columnId, taskId, metadataOnly });
     
-    if (deletedTasksSettings.enabled) {
-      // Find which column contains this task
-      const sourceColumn = this.state.columns.find((c: any) => c.taskIds.includes(taskId));
-      const sourceColumnId = sourceColumn?.id;
-      const taskPosition = sourceColumn?.taskIds.indexOf(taskId) || 0;
-      
-      // Store the current state for undo
-      const taskToDelete = { 
-        ...task, 
-        deletedAt: Date.now(),
-        originalColumnId: sourceColumnId,
-        originalPosition: taskPosition
-      };
-      
-      // Remove task from state
-      this.setState((s: any) => {
-        const tasks = { ...s.tasks };
-        delete tasks[taskId];
-        const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
-        const deletedTasks = [...(s.deletedTasks || []), taskToDelete];
+    if (metadataOnly) {
+      // Handle metadata-only updates (like adding new labels to board)
+      if (payload.labels) {
+        console.log('Processing metadata-only labels update:', payload.labels);
         
-        return { ...s, tasks, columns, deletedTasks };
-      });
-      
-      // Clear any existing undo timeout
-      if (this.undoTimeoutRef.current) {
-        clearTimeout(this.undoTimeoutRef.current);
-      }
-
-      // Show undo message in task stats
-      this.setUndoState({
-        isVisible: true,
-        message: `Task "${task.title}" deleted`,
-        type: 'delete',
-        onUndo: () => {
-          // Clear timeout when undo is clicked
-          if (this.undoTimeoutRef.current) {
-            clearTimeout(this.undoTimeoutRef.current);
-            this.undoTimeoutRef.current = null;
-          }
-          
-          // Undo the deletion
-          this.setState((s: any) => {
-            const { deletedAt, originalColumnId, originalPosition, ...cleanTask } = taskToDelete;
-            
-            // Find the original column or fallback to first column
-            let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
-            if (!targetColumn) {
-              targetColumn = s.columns[0];
-            }
-            
-            // Insert task back at original position
-            const newTaskIds = [...targetColumn.taskIds];
-            const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
-            newTaskIds.splice(insertPosition, 0, taskId);
-            
-            // Update columns with restored task
-            const updatedColumns = s.columns.map((c: any) => 
-              c.id === targetColumn.id 
-                ? { ...c, taskIds: newTaskIds }
-                : c
-            );
-            
-            return {
-              ...s,
-              tasks: { ...s.tasks, [taskId]: cleanTask },
-              columns: updatedColumns,
-              deletedTasks: s.deletedTasks?.filter((t: any) => t.id !== taskId) || []
-            };
-          });
-          
-          this.setUndoState(null);
-        }
-      });
-
-      // Auto-hide after 10 seconds with protected timeout
-      this.undoTimeoutRef.current = setTimeout(() => {
-        this.setUndoState(null);
-        this.undoTimeoutRef.current = null;
-      }, 10000);
-    } else {
-      // Permanently delete (original behavior)
-      this.setState((s: any) => {
-        const tasks = { ...s.tasks };
-        delete tasks[taskId];
-        const columns = s.columns.map((c: any) => ({ ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) }));
-        return { ...s, tasks, columns };
-      });
-    }
-  };
-
-  completeTask = (taskId: string) => {
-    const task = this.state.tasks[taskId];
-    if (!task) return;
-    
-    // Find current column containing the task
-    const currentColumn = this.state.columns.find((c: any) => c.taskIds.includes(taskId));
-    if (!currentColumn) return;
-    
-    // Store task data for potential undo
-    const taskForUndo = {
-      ...task,
-      originalColumnId: currentColumn.id,
-      originalPosition: currentColumn.taskIds.indexOf(taskId)
-    };
-    
-    this.setState((s: any) => {
-      // Mark task as completed and store its last column
-      const updatedTask = {
-        ...task,
-        completed: true,
-        completedAt: Date.now(),
-        updatedAt: Date.now(),
-        lastColumnId: currentColumn.id // Store where it came from for restoration
-      };
-      
-      // Remove task from its current column
-      const newColumns = s.columns.map((c: any) => {
-        if (c.id === currentColumn.id) {
-          return { ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) };
-        }
-        return c;
-      });
-      
-      return {
-        ...s,
-        tasks: { ...s.tasks, [taskId]: updatedTask },
-        columns: newColumns
-      };
-    });
-    
-    // Clear any existing undo timeout
-    if (this.undoTimeoutRef.current) {
-      clearTimeout(this.undoTimeoutRef.current);
-    }
-
-    // Show completion message with undo option
-    this.setUndoState({
-      isVisible: true,
-      message: `Great job! Task "${task.title}" completed! 🎉`,
-      type: 'complete',
-      onUndo: () => {
-        // Clear timeout when undo is clicked
-        if (this.undoTimeoutRef.current) {
-          clearTimeout(this.undoTimeoutRef.current);
-          this.undoTimeoutRef.current = null;
-        }
-        
-        // Undo the completion - restore to original column and position
+        // Update local state first
         this.setState((s: any) => {
-          const { originalColumnId, originalPosition, ...cleanTask } = taskForUndo;
-          
-          // Find the original column or fallback to first column
-          let targetColumn = s.columns.find((c: any) => c.id === originalColumnId);
-          if (!targetColumn) {
-            targetColumn = s.columns[0];
-          }
-          
-          // Insert task back at original position
-          const newTaskIds = [...targetColumn.taskIds];
-          const insertPosition = Math.min(originalPosition || 0, newTaskIds.length);
-          newTaskIds.splice(insertPosition, 0, taskId);
-          
-          // Update columns with restored task
-          const updatedColumns = s.columns.map((c: any) => 
-            c.id === targetColumn.id 
-              ? { ...c, taskIds: newTaskIds }
-              : c
-          );
-          
-          // Mark task as incomplete
-          const restoredTask = {
-            ...cleanTask,
-            completed: false,
-            completedAt: undefined,
-            updatedAt: Date.now()
-          };
-          
-          return {
-            ...s,
-            tasks: { ...s.tasks, [taskId]: restoredTask },
-            columns: updatedColumns
-          };
+          const newLabels = payload.labels || [];
+          const existing = new Set(s.labels || []);
+          const uniq = newLabels.filter((l: string) => l && !existing.has(l));
+          return uniq.length ? { ...s, labels: [...(s.labels || []), ...uniq] } : s;
         });
         
-        this.setUndoState(null);
-      }
-    });
-
-    // Auto-hide after 10 seconds with protected timeout
-    this.undoTimeoutRef.current = setTimeout(() => {
-      this.setUndoState(null);
-      this.undoTimeoutRef.current = null;
-    }, 10000);
-    
-    // Trigger confetti animation for positive feedback
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#10b981', '#059669', '#047857']
-    });
-  };
-
-  restoreTask = (taskId: string) => {
-    this.setState((s: any) => {
-      const task = s.tasks[taskId];
-      if (!task || !task.completed) return s;
-      
-      // Mark task as not completed
-      const updatedTask = {
-        ...task,
-        completed: false,
-        completedAt: null,
-        updatedAt: Date.now()
-      };
-      
-      // Find the column to restore to (use lastColumnId or default to first column)
-      const targetColumnId = task.lastColumnId || s.columns[0]?.id;
-      const newColumns = s.columns.map((c: any) => {
-        if (c.id === targetColumnId) {
-          return { ...c, taskIds: [taskId, ...c.taskIds] };
-        }
-        return c;
-      });
-      
-      return {
-        ...s,
-        tasks: { ...s.tasks, [taskId]: updatedTask },
-        columns: newColumns
-      };
-    });
-  };
-
-  moveTask = (taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
-    this.setState((s: any) => {
-      // Handle same column reordering
-      if (fromColumnId === toColumnId) {
-        const newColumns = s.columns.map((col: any) => {
-          if (col.id === fromColumnId) {
-            const taskIds = [...col.taskIds];
-            const fromIndex = taskIds.indexOf(taskId);
-            if (fromIndex === -1) return col;
+        // Also save new labels to database for the current board
+        const currentBoardId = getCurrentBoardId();
+        console.log('Current board ID for label creation:', currentBoardId);
+        if (currentBoardId && payload.labels.length > 0) {
+          try {
+            console.log('Saving new labels to database for board:', currentBoardId);
+            // Get existing labels from state to find new ones
+            const existingLabels = this.state.labels || [];
+            const newLabels = payload.labels.filter((l: string) => !existingLabels.includes(l));
             
-            // Remove from original position
-            taskIds.splice(fromIndex, 1);
-            
-            // Insert at new position
-            const toIndex = position !== undefined ? Math.min(position, taskIds.length) : taskIds.length;
-            taskIds.splice(toIndex, 0, taskId);
-            
-            return { ...col, taskIds };
+            if (newLabels.length > 0) {
+              console.log('Creating new labels in database:', newLabels);
+              // Create new labels in database
+              for (const labelName of newLabels) {
+                const { error } = await supabase
+                  .from('labels')
+                  .insert({
+                    board_id: currentBoardId,
+                    name: labelName,
+                    color: null
+                  });
+                if (error) {
+                  console.error('Error creating label:', labelName, error);
+                } else {
+                  console.log('Successfully created label:', labelName);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error saving labels to database:', error);
           }
-          return col;
-        });
-        return { ...s, columns: newColumns };
+        }
       }
+      return;
+    }
+
+    if (!taskId) {
+      if (!columnId) return;
+      const boardId = await this.getBoardIdForCreate(columnId);
+      // New tasks always go to position 1 (top of column)
+      const created = await this.saving(async () => {
+        const { data, error } = await supabase.from('tasks').insert({
+          board_id: boardId,
+          column_id: columnId,
+          title: (payload.title || 'Untitled').trim(),
+          description: payload.description?.trim() || null,
+          priority: payload.priority || 'Medium',
+          due_at: payload.dueDate || null,
+          completed: false,
+          completed_at: null,
+          position: 1, // Always position 1 for new tasks
+          deleted_at: null,
+        }).select('*').single();
+        if (error) throw error;
+        return data;
+      });
+
+      console.log('Creating task with labels:', { labels: payload.labels, boardId });
       
-      // Handle cross-column moves
+      await this.saving(() => replaceSubtasks(created.id as UUID, payload.subtasks || []));
+      
+      if (payload.labels && payload.labels.length > 0) {
+        console.log('Processing labels for new task:', payload.labels);
+        const labelIds = await this.saving(() => ensureLabelIds(boardId as UUID, payload.labels || []));
+        console.log('Label IDs obtained:', labelIds);
+        await this.saving(() => setTaskLabels(created.id as UUID, labelIds));
+        console.log('Task labels set successfully');
+      } else {
+        console.log('No labels to process for new task');
+      }
+
+      this.setState((s: any) => ({
+        ...s,
+        labels: Array.from(new Set([...(s.labels || []), ...(payload.labels || [])])),
+        tasks: {
+          ...s.tasks,
+          [created.id]: {
+            id: created.id,
+            title: created.title,
+            description: created.description || undefined,
+            labels: (payload.labels || []).slice().sort(),
+            priority: created.priority,
+            dueDate: created.due_at,
+            createdAt: Date.parse(created.created_at) / 1000,
+            updatedAt: Date.parse(created.updated_at) / 1000,
+            subtasks: (payload.subtasks || []).map((st: any) => ({ id: st.id || '', title: st.title, completed: !!st.completed })),
+            completed: false,
+            completedAt: null,
+          },
+        },
+        columns: s.columns.map((c: any) => c.id === columnId ? { ...c, taskIds: [created.id, ...c.taskIds] } : c),
+      }));
+      return;
+    }
+
+    // UPDATE
+    await this.saving(async () => {
+      const patch: any = {
+        title: (payload.title || 'Untitled').trim(),
+        description: payload.description?.trim() || null,
+        priority: payload.priority || 'Medium',
+        due_at: payload.dueDate || null,
+      };
+      const { error } = await supabase.from('tasks').update(patch).eq('id', taskId!);
+      if (error) throw error;
+    });
+
+    const boardId = await this.getBoardIdForTask(taskId!);
+    console.log('Updating task with labels:', { labels: payload.labels, boardId, taskId });
+    
+    await this.saving(() => replaceSubtasks(taskId as UUID, payload.subtasks || []));
+    
+    if (payload.labels && payload.labels.length > 0) {
+      console.log('Processing labels for task update:', payload.labels);
+      const labelIds = await this.saving(() => ensureLabelIds(boardId as UUID, payload.labels || []));
+      console.log('Label IDs obtained for update:', labelIds);
+      await this.saving(() => setTaskLabels(taskId as UUID, labelIds));
+      console.log('Task labels updated successfully');
+    } else {
+      console.log('No labels to process for task update');
+    }
+
+    this.setState((s: any) => ({
+      ...s,
+      tasks: {
+        ...s.tasks,
+        [taskId!]: {
+          ...s.tasks[taskId!],
+          title: (payload.title || 'Untitled').trim(),
+          description: payload.description?.trim() || '',
+          labels: (payload.labels || []).slice().sort(),
+          priority: payload.priority || 'Medium',
+          dueDate: payload.dueDate || '',
+          subtasks: (payload.subtasks || []).map((st: any) => ({ id: st.id || '', title: st.title, completed: !!st.completed })),
+          updatedAt: Date.now(),
+        },
+      },
+    }));
+  };
+
+  deleteTask = async (taskId: string) => {
+    const { columnId, position } = (() => {
+      for (const c of this.state.columns) {
+        const idx = c.taskIds.indexOf(taskId);
+        if (idx !== -1) return { columnId: c.id, position: idx };
+      }
+      return { columnId: this.state.columns[0]?.id, position: 0 };
+    })();
+
+    await this.saving(async () => {
+      const { error } = await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', taskId as any);
+      if (error) throw error;
+    });
+
+    this.setState((s: any) => ({
+      ...s,
+      columns: s.columns.map((c: any) => (c.id === columnId ? { ...c, taskIds: c.taskIds.filter((id: string) => id !== taskId) } : c)),
+      deletedTasks: [
+        {
+          ...(s.tasks[taskId] || { id: taskId, title: '' }),
+          id: taskId,
+          deletedAt: Date.now(),
+          originalColumnId: columnId,
+          originalPosition: position,
+        },
+        ...(s.deletedTasks || []),
+      ],
+    }));
+  };
+
+  restoreDeletedTask = async (taskId: string) => {
+    await this.saving(async () => {
+      const { error } = await supabase.from('tasks').update({ deleted_at: null }).eq('id', taskId as any);
+      if (error) throw error;
+    });
+
+    this.setState((s: any) => {
+      const deletedTask = (s.deletedTasks || []).find((t: any) => t.id === taskId);
+      const targetColumnId = deletedTask?.originalColumnId || s.columns[0]?.id;
+      const insertPos = Math.min(deletedTask?.originalPosition ?? 0, (s.columns.find((c: any) => c.id === targetColumnId)?.taskIds.length ?? 0));
+      const cols = s.columns.map((c: any) => {
+        if (c.id !== targetColumnId) return c;
+        const ids = [...c.taskIds];
+        ids.splice(insertPos, 0, taskId);
+        return { ...c, taskIds: ids };
+      });
+      return { ...s, columns: cols, deletedTasks: (s.deletedTasks || []).filter((t: any) => t.id !== taskId) };
+    });
+  };
+
+  permanentlyDeleteTask = async (taskId: string) => {
+    await this.saving(async () => {
+      const { error } = await supabase.from('tasks').delete().eq('id', taskId as any);
+      if (error) throw error;
+    });
+    this.setState((s: any) => ({ ...s, deletedTasks: (s.deletedTasks || []).filter((t: any) => t.id !== taskId) }));
+  };
+
+  moveTask = async (taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
+    console.log('moveTask called with:', { taskId, fromColumnId, toColumnId, position });
+    console.log('Current board ID:', getCurrentBoardId());
+    
+    const toPos = position ?? (this.state.columns.find((c: any) => c.id === toColumnId)?.taskIds.length ?? 0);
+    
+    // Update local state immediately for better UX
+    this.setState((s: any) => {
       const newColumns = s.columns.map((col: any) => {
         if (col.id === fromColumnId) {
           return { ...col, taskIds: col.taskIds.filter((id: string) => id !== taskId) };
         }
         if (col.id === toColumnId) {
-          const newTaskIds = [...col.taskIds];
-          const insertIndex = position !== undefined ? Math.min(position, newTaskIds.length) : newTaskIds.length;
-          newTaskIds.splice(insertIndex, 0, taskId);
-          return { ...col, taskIds: newTaskIds };
+          const ids = [...col.taskIds];
+          const toIdx = Math.min(toPos, ids.length);
+          ids.splice(toIdx, 0, taskId);
+          return { ...col, taskIds: ids };
         }
         return col;
       });
-      
       return { ...s, columns: newColumns };
     });
+    
+    try {
+      // Use the new sync function for all task moves
+      await this.saving(() => syncTaskPositionsAfterMove(
+        taskId as UUID,
+        fromColumnId as UUID,
+        toColumnId as UUID,
+        toPos
+      ));
+      
+      console.log('Task move completed successfully');
+      
+    } catch (error) {
+      console.error('Error moving task:', error);
+      
+      // Revert local state on error
+      this.setState((s: any) => {
+        const newColumns = s.columns.map((col: any) => {
+          if (col.id === toColumnId) {
+            return { ...col, taskIds: col.taskIds.filter((id: string) => id !== taskId) };
+          }
+          if (col.id === fromColumnId) {
+            const ids = [...col.taskIds];
+            ids.push(taskId); // Add back to original position (simplified)
+            return { ...col, taskIds: ids };
+          }
+          return col;
+        });
+        return { ...s, columns: newColumns };
+      });
+      
+      // Use fallback: simple database update
+      try {
+        console.log('Attempting fallback move...');
+        await this.saving(async () => {
+          const { error } = await supabase.from('tasks').update({ 
+            column_id: toColumnId as any, 
+            position: toPos + 1,
+            updated_at: new Date().toISOString()
+          }).eq('id', taskId as any);
+          if (error) throw error;
+        });
+        
+        // Re-apply the UI update
+        this.setState((s: any) => {
+          const newColumns = s.columns.map((col: any) => {
+            if (col.id === fromColumnId) {
+              return { ...col, taskIds: col.taskIds.filter((id: string) => id !== taskId) };
+            }
+            if (col.id === toColumnId) {
+              const ids = [...col.taskIds];
+              const toIdx = Math.min(toPos, ids.length);
+              ids.splice(toIdx, 0, taskId);
+              return { ...col, taskIds: ids };
+            }
+            return col;
+          });
+          return { ...s, columns: newColumns };
+        });
+        
+        console.log('Fallback move successful');
+        
+      } catch (fallbackError) {
+        console.error('Fallback move also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
   };
 
-  deleteLabel = (labelToDelete: string) => {
-    if (!confirm(`Delete "${labelToDelete}" label everywhere?`)) return;
-    this.setState((s: any) => {
-      const newLabels = s.labels.filter((l: string) => l !== labelToDelete);
-      const newTasks = { ...s.tasks };
-      Object.keys(newTasks).forEach(taskId => {
-        const task = newTasks[taskId];
-        if (task.labels?.includes(labelToDelete)) {
-          newTasks[taskId] = {
-            ...task,
-            labels: task.labels.filter((l: string) => l !== labelToDelete),
+  completeTask = async (taskId: string) => {
+    const t = this.state.tasks[taskId];
+    const next = !t?.completed;
+    await this.saving(async () => {
+      const { error } = await supabase.from('tasks').update({ completed: next, completed_at: next ? new Date().toISOString() : null }).eq('id', taskId as any);
+      if (error) throw error;
+    });
+    this.setState((s: any) => ({
+      ...s,
+      tasks: { ...s.tasks, [taskId]: { ...s.tasks[taskId], completed: next, completedAt: next ? Date.now() : null } },
+    }));
+    if (next) confetti({ particleCount: 60, spread: 50, origin: { y: 0.8 } });
+  };
+
+  restoreTask = async (taskId: string) => {
+    await this.saving(async () => {
+      const { error } = await supabase.from('tasks').update({ completed: false, completed_at: null }).eq('id', taskId as any);
+      if (error) throw error;
+    });
+    this.setState((s: any) => ({ ...s, tasks: { ...s.tasks, [taskId]: { ...s.tasks[taskId], completed: false, completedAt: null } } }));
+  };
+
+  updateTaskLabels = async (taskId: string, labels: string[]) => {
+    console.log('updateTaskLabels called with:', { taskId, labels });
+    
+    const boardId = await this.getBoardIdForTask(taskId);
+    
+    try {
+      if (labels.length > 0) {
+        console.log('Processing labels for task label update:', labels);
+        const labelIds = await this.saving(() => ensureLabelIds(boardId as UUID, labels));
+        console.log('Label IDs obtained for label update:', labelIds);
+        await this.saving(() => setTaskLabels(taskId as UUID, labelIds));
+        console.log('Task labels updated successfully');
+      } else {
+        console.log('Clearing all labels for task');
+        await this.saving(() => setTaskLabels(taskId as UUID, []));
+      }
+
+      // Update local state
+      this.setState((s: any) => ({
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [taskId]: {
+            ...s.tasks[taskId],
+            labels: labels.slice().sort(),
             updatedAt: Date.now(),
-          };
+          },
+        },
+      }));
+      
+    } catch (error) {
+      console.error('Error updating task labels:', error);
+      throw error;
+    }
+  };
+
+  deleteLabel = async (name: string) => {
+    // Prefer global board id; otherwise fall back to the board of the first column
+    let boardId = getCurrentBoardId();
+    if (!boardId) {
+      const firstCol = this.state.columns?.[0];
+      if (firstCol) boardId = await resolveBoardIdByColumn(firstCol.id);
+    }
+    if (!boardId) throw new Error('Cannot determine board id for label deletion');
+    await this.saving(() => deleteLabelEverywhere(boardId as UUID, name));
+    this.setState((s: any) => {
+      const newLabels = (s.labels || []).filter((l: string) => l.toLowerCase() !== name.toLowerCase());
+      const newTasks: any = { ...s.tasks };
+      Object.keys(newTasks).forEach((id) => {
+        const t = newTasks[id];
+        if (t.labels?.some((l: string) => l.toLowerCase() === name.toLowerCase())) {
+          newTasks[id] = { ...t, labels: t.labels.filter((l: string) => l.toLowerCase() !== name.toLowerCase()) };
         }
       });
       return { ...s, labels: newLabels, tasks: newTasks };

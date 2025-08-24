@@ -58,21 +58,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let canceled = false
     const run = async () => {
       try {
+        console.log('Loading profile for user:', user.id)
         const { data: prof, error: profileError } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', user.id).maybeSingle()
         if (profileError) throw profileError
         if (canceled) return
+        
         if (prof) {
+          console.log('Profile found:', prof)
           setProfile(prof as Profile)
         } else {
-          const { error: upsertError } = await supabase.from('profiles').upsert({
+          console.log('Profile not found, creating new profile for user:', user.id)
+          // Create profile with explicit fields to ensure it works
+          const profileData = {
             id: user.id,
             display_name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
             avatar_url: user.user_metadata?.avatar_url || null,
-          })
-          if (upsertError) throw upsertError
-          const { data: prof2, error: fetchError } = await supabase.from('profiles').select('display_name, avatar_url').eq('id', user.id).maybeSingle()
-          if (fetchError) throw fetchError
-          if (!canceled) setProfile((prof2 as any) ?? null)
+          }
+          console.log('Creating profile with data:', profileData)
+          
+          const { data: newProfile, error: upsertError } = await supabase
+            .from('profiles')
+            .upsert(profileData, { onConflict: 'id' })
+            .select('display_name, avatar_url')
+            .single()
+          
+          if (upsertError) {
+            console.error('Profile upsert error:', upsertError)
+            throw upsertError
+          }
+          
+          console.log('Profile created successfully:', newProfile)
+          if (!canceled) setProfile(newProfile as Profile)
         }
       } catch (e: any) {
         console.error('Profile fetch/creation failed:', e)

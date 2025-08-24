@@ -1,33 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sun, Moon, Upload, Download, Settings, ChevronRight, Trash2 } from 'lucide-react';
+import { X, Upload, Download, Trash2, ChevronRight } from 'lucide-react';
 import { CustomDropdown } from '../common/CustomDropdown';
-import { serializeCombo } from '../../utils/helpers';
-
-function ShortcutInput({ value, onChange, theme }: any) {
-  return (
-    <input
-      readOnly
-      value={value}
-      onKeyDown={(e) => {
-        e.preventDefault();
-        const combo = serializeCombo(e.nativeEvent as any);
-        onChange(combo);
-      }}
-      className={`w-32 text-xs px-2 py-1 rounded-xl border ${theme.border} ${theme.surface}`}
-    />
-  );
-}
 
 interface SettingsSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onToggleTheme: () => void;
-  isDark: boolean;
   onExport: () => void;
   onImport: (file: File) => void;
-  shortcuts: any;
-  onChangeShortcut: (key: string, value: string) => void;
   deletedTasksSettings: {
     enabled: boolean;
     retentionPeriod: string;
@@ -46,42 +26,14 @@ interface SettingsSidebarProps {
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   isOpen,
   onClose,
-  onToggleTheme,
-  isDark,
   onExport,
   onImport,
-  shortcuts,
-  onChangeShortcut,
   deletedTasksSettings,
   onChangeDeletedTasksSetting,
   onOpenDeletedTasks,
   theme
 }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-
-  const shortcutItems = [
-    { key: "newTask", label: "New task" },
-    { key: "newColumn", label: "New list/column" },
-    { key: "search", label: "Focus search" },
-    { key: "toggleFilters", label: "Toggle filters panel" },
-    { key: "moveTaskUp", label: "Move task within column ↑" },
-    { key: "moveTaskDown", label: "Move task within column ↓" },
-    { key: "moveTaskLeft", label: "Move task across columns ←" },
-    { key: "deleteTask", label: "Delete task" },
-    { key: "completeTask", label: "Mark completed" },
-    { key: "priority1", label: "Set priority Urgent" },
-    { key: "priority2", label: "Set priority High" },
-    { key: "priority3", label: "Set priority Medium" },
-    { key: "priority4", label: "Set priority Low" },
-    { key: "setDueDate", label: "Set due date" },
-  ];
-
-  useEffect(() => {
-    if (isOpen) {
-      setShowShortcuts(false);
-    }
-  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -119,32 +71,6 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
 
             {/* Content */}
             <div className="p-6 space-y-6">
-              {/* Theme Settings */}
-              <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
-                <h3 className="text-sm font-medium mb-3">Appearance</h3>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center">
-                      {isDark ? <Sun className="h-5 w-5 text-amber-600" /> : <Moon className="h-5 w-5 text-slate-600" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Theme</p>
-                      <p className={`text-xs ${theme.muted}`}>
-                        {isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={onToggleTheme}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${theme.border} ${theme.subtle} hover:bg-black/5 dark:hover:bg-white/10 transition-colors`}
-                  >
-                    {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
-                    {isDark ? "Light" : "Dark"} mode
-                  </button>
-                </div>
-              </div>
-
               {/* Deleted Tasks */}
               <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
                 <h3 className="text-sm font-medium mb-3">Deleted Tasks</h3>
@@ -273,46 +199,6 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
                   className="hidden"
                   onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
                 />
-              </div>
-
-              {/* Keyboard Shortcuts */}
-              <div className="p-4 rounded-xl border border-black/10 dark:border-white/10">
-                <div 
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => setShowShortcuts(!showShortcuts)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center">
-                      <Settings className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Keyboard Shortcuts</p>
-                      <p className={`text-xs ${theme.muted}`}>
-                        Customize keyboard shortcuts
-                      </p>
-                    </div>
-                  </div>
-                  <button className={`p-2 rounded-lg ${theme.subtle} transition-colors`}>
-                    <ChevronRight className={`h-4 w-4 transition-transform ${showShortcuts ? 'rotate-90' : ''}`} />
-                  </button>
-                </div>
-
-                {showShortcuts && (
-                  <div className="mt-4 pt-4 border-t border-black/10 dark:border-white/10">
-                    <div className="space-y-3">
-                      {shortcutItems.map((item) => (
-                        <div key={item.key} className="flex items-center justify-between gap-3">
-                          <span className="text-sm flex-1">{item.label}</span>
-                          <ShortcutInput
-                            value={shortcuts[item.key]}
-                            onChange={(v: string) => onChangeShortcut(item.key, v)}
-                            theme={theme}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>
