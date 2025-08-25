@@ -410,7 +410,12 @@ export class TaskActions {
       ...s,
       tasks: { ...s.tasks, [taskId]: { ...s.tasks[taskId], completed: next, completedAt: next ? Date.now() : null } },
     }));
-    if (next) confetti({ particleCount: 60, spread: 50, origin: { y: 0.8 } });
+    if (next) confetti({ 
+      particleCount: 60, 
+      spread: 50, 
+      origin: { y: 0.8 },
+      colors: ['#10b981', '#059669', '#047857', '#065f46'] // Green color palette
+    });
   };
 
   restoreTask = async (taskId: string) => {

@@ -463,7 +463,12 @@ export class OptimisticTaskActions {
     }));
 
     // Show confetti immediately for better UX
-    if (next) confetti({ particleCount: 60, spread: 50, origin: { y: 0.8 } });
+    if (next) confetti({ 
+      particleCount: 60, 
+      spread: 50, 
+      origin: { y: 0.8 },
+      colors: ['#10b981', '#059669', '#047857', '#065f46'] // Green color palette
+    });
 
     // Update database immediately
     try {
