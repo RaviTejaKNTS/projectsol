@@ -9,9 +9,9 @@ import { AuthOverlay } from "../components/auth/AuthOverlay";
 import { BoardContainer } from "../components/board/BoardContainer";
 import { DevTests } from "../components/dev/DevTests";
 import { useAppState } from "../hooks/useAppState";
-import { useColumnActions } from "../hooks/useColumnActions";
+import { useOptimisticColumnActions } from "../hooks/useOptimisticColumnActions";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { TaskActions } from "../utils/taskActions";
+import { OptimisticTaskActions } from "../utils/optimisticTaskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
 import { AccountLinkingModal } from '../components/auth/AccountLinkingModal';
 import { defaultState } from '../utils/helpers';
@@ -176,17 +176,26 @@ function App() {
   }, [board]);
 
   // Pass board to all action hooks:
-  const columnActions = useColumnActions(state, setState, { 
+  const columnActions = useOptimisticColumnActions(state, setState, { 
     setSaveStatus 
   });
   const {
     deleteColumn,
     moveColumn,
-    startAddColumn
+    startAddColumn,
+    cleanup: cleanupColumnActions
   } = columnActions;
 
   // Task actions now write to DB under the hood (no UI changes)
-  const taskActions = new TaskActions({ state, setState, setSaveStatus });
+  const taskActions = new OptimisticTaskActions({ state, setState, setSaveStatus });
+
+  // Cleanup optimistic actions on unmount
+  useEffect(() => {
+    return () => {
+      taskActions.destroy();
+      cleanupColumnActions();
+    };
+  }, [cleanupColumnActions]);
 
   const openNewTask = (columnId: string | null = null) => {
     setNewTaskColumnId(columnId);
@@ -460,6 +469,7 @@ function App() {
         onCommitRenameColumn={() => {}}
         onMoveTask={moveTask}
         onMoveColumn={(from: string, to: string) => board && moveColumn(from, to)}
+        onReorderTasksInColumn={(columnId: string, taskIds: string[]) => board && taskActions.reorderTasksInColumn(columnId, taskIds)}
         onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
         onStartAddColumn={startAddColumn}
         onCommitAddColumn={() => {}}

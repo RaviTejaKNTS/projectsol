@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomDropdown } from '../common/CustomDropdown';
 import TaskCard from './TaskCard';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import { Check, MoreHorizontal, Plus, X } from 'lucide-react';
@@ -22,6 +22,7 @@ export function Column({
   onCommitRename,
   onMoveTask,
   onMoveColumn,
+  onReorderTasksInColumn,
   selectedTaskId,
   setSelectedTaskId,
   onCompleteTask,
@@ -32,6 +33,25 @@ export function Column({
   const headerRef = useRef<HTMLDivElement>(null);
   const taskListRef = useRef<HTMLDivElement>(null);
   const [isColumnDraggedOver, setIsColumnDraggedOver] = useState<boolean>(false);
+
+  // Handle same-column reordering
+  const handleSameColumnReorder = useCallback((taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
+    if (fromColumnId === toColumnId && onReorderTasksInColumn) {
+      // Same column reordering - handle this with optimistic actions
+      const currentIndex = ids.indexOf(taskId);
+      if (currentIndex !== -1 && typeof position === 'number') {
+        // Create new order array
+        const newOrder = [...ids];
+        newOrder.splice(currentIndex, 1); // Remove from current position
+        newOrder.splice(position, 0, taskId); // Insert at new position
+        
+        // Call the reorder function
+        onReorderTasksInColumn(col.id, newOrder);
+      }
+      return true; // Indicate we handled it
+    }
+    return false; // Indicate we didn't handle it
+  }, [ids, col.id, onReorderTasksInColumn]);
 
   useEffect(() => {
     const headerEl = headerRef.current;
@@ -90,7 +110,32 @@ export function Column({
 
           const taskId = args.source.data.taskId as string;
           const fromColumnId = args.source.data.columnId as string;
-          onMoveTask(taskId, fromColumnId, col.id, ids.length);
+          
+          // Calculate the exact drop position based on mouse position
+          const rect = element.getBoundingClientRect();
+          const dropY = args.location.current.input.clientY;
+          const relativeY = dropY - rect.top;
+          
+          // Find the best insertion position based on drop location
+          let insertPosition = ids.length; // Default to end
+          
+          if (ids.length > 0) {
+            // Calculate position based on where the mouse was dropped
+            const taskHeight = 120; // Approximate task card height
+            const headerHeight = 60; // Approximate column header height
+            
+            if (relativeY > headerHeight) {
+              const adjustedY = relativeY - headerHeight;
+              insertPosition = Math.floor(adjustedY / taskHeight);
+              insertPosition = Math.max(0, Math.min(insertPosition, ids.length));
+            }
+          }
+          
+          // Try to handle same-column reordering first
+          if (!handleSameColumnReorder(taskId, fromColumnId, col.id, insertPosition)) {
+            // If not same-column reordering, call the regular move function
+            onMoveTask(taskId, fromColumnId, col.id, insertPosition);
+          }
         }
       },
     });

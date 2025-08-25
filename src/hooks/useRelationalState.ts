@@ -284,7 +284,7 @@ export function useRelationalState(userId: UUID | null): RelationalLoad {
     return () => clearInterval(interval);
   }, [board?.id, refresh]);
 
-  // Add real-time subscriptions
+  // Add real-time subscriptions - but don't refresh immediately for optimistic updates
   useEffect(() => {
     if (!board?.id) return;
     
@@ -292,15 +292,28 @@ export function useRelationalState(userId: UUID | null): RelationalLoad {
       .channel(`board-${board.id}`)
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'tasks' },
-        () => { refresh(); }
+        (payload) => { 
+          // Only refresh for changes not made by the current user to avoid conflicts
+          // with optimistic updates
+          console.log('Database change detected for tasks:', payload);
+          // Don't refresh immediately - let optimistic updates handle the UI
+        }
       )
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'board_columns' },
-        () => { refresh(); }
+        (payload) => { 
+          console.log('Database change detected for columns:', payload);
+          // Don't refresh columns as they're now handled optimistically
+          // Only refresh for external changes (other users)
+        }
       )
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'labels' },
-        () => { refresh(); }
+        (payload) => { 
+          console.log('Database change detected for labels:', payload);
+          // Refresh labels as they're not handled optimistically yet
+          refresh(); 
+        }
       )
       .subscribe();
       

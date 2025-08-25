@@ -27,6 +27,7 @@ interface BoardContainerProps {
   onMoveTask: (taskId: string, fromColumnId: string, toColumnId: string, position?: number) => void;
   onMoveColumn: (fromId: string, toId: string) => void;
   onCompleteTask: (taskId: string) => void;
+  onReorderTasksInColumn: (columnId: string, taskIds: string[]) => void;
   onStartAddColumn: () => void;
   onCommitAddColumn: () => void;
   onCancelAddColumn: () => void;
@@ -48,6 +49,7 @@ export function BoardContainer({
   onMoveTask,
   onMoveColumn,
   onCompleteTask,
+  onReorderTasksInColumn,
   onStartAddColumn,
   onCommitAddColumn,
   onCancelAddColumn,
@@ -138,6 +140,7 @@ export function BoardContainer({
               onMoveTask={onMoveTask}
               onMoveColumn={onMoveColumn}
               onCompleteTask={onCompleteTask}
+              onReorderTasksInColumn={onReorderTasksInColumn}
               shouldAnimate={shouldAnimateColumns}
               animationIndex={index}
             />
