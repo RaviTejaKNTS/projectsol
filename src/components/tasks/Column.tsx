@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { CustomDropdown } from '../common/CustomDropdown';
 import TaskCard from './TaskCard';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import { Check, MoreHorizontal, Plus, X } from 'lucide-react';
@@ -22,7 +22,7 @@ export function Column({
   onCommitRename,
   onMoveTask,
   onMoveColumn,
-  onReorderTasksInColumn,
+
   selectedTaskId,
   setSelectedTaskId,
   onCompleteTask,
@@ -34,24 +34,7 @@ export function Column({
   const taskListRef = useRef<HTMLDivElement>(null);
   const [isColumnDraggedOver, setIsColumnDraggedOver] = useState<boolean>(false);
 
-  // Handle same-column reordering
-  const handleSameColumnReorder = useCallback((taskId: string, fromColumnId: string, toColumnId: string, position?: number) => {
-    if (fromColumnId === toColumnId && onReorderTasksInColumn) {
-      // Same column reordering - handle this with optimistic actions
-      const currentIndex = ids.indexOf(taskId);
-      if (currentIndex !== -1 && typeof position === 'number') {
-        // Create new order array
-        const newOrder = [...ids];
-        newOrder.splice(currentIndex, 1); // Remove from current position
-        newOrder.splice(position, 0, taskId); // Insert at new position
-        
-        // Call the reorder function
-        onReorderTasksInColumn(col.id, newOrder);
-      }
-      return true; // Indicate we handled it
-    }
-    return false; // Indicate we didn't handle it
-  }, [ids, col.id, onReorderTasksInColumn]);
+
 
   useEffect(() => {
     const headerEl = headerRef.current;
@@ -131,11 +114,8 @@ export function Column({
             }
           }
           
-          // Try to handle same-column reordering first
-          if (!handleSameColumnReorder(taskId, fromColumnId, col.id, insertPosition)) {
-            // If not same-column reordering, call the regular move function
-            onMoveTask(taskId, fromColumnId, col.id, insertPosition);
-          }
+          // Always call the main move function - it will handle both same-column and cross-column moves
+          onMoveTask(taskId, fromColumnId, col.id, insertPosition);
         }
       },
     });

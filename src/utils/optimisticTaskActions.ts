@@ -373,6 +373,61 @@ export class OptimisticTaskActions {
     
     const toPos = position ?? (this.state.columns.find((c: any) => c.id === toColumnId)?.taskIds.length ?? 0);
     
+    // Check if this is same-column reordering
+    if (fromColumnId === toColumnId) {
+      // Same column reordering - handle this specially
+      const currentColumn = this.state.columns.find((c: any) => c.id === fromColumnId);
+      if (!currentColumn) {
+        console.error('Column not found for same-column reordering');
+        return;
+      }
+      
+      const currentIndex = currentColumn.taskIds.indexOf(taskId);
+      if (currentIndex === -1) {
+        console.error('Task not found in column for reordering');
+        return;
+      }
+      
+      // Create new order array
+      const newOrder = [...currentColumn.taskIds];
+      newOrder.splice(currentIndex, 1); // Remove from current position
+      newOrder.splice(toPos, 0, taskId); // Insert at new position
+      
+      // Update local state immediately for same-column reordering
+      this.setState((s: any) => ({
+        ...s,
+        columns: s.columns.map((col: any) => 
+          col.id === fromColumnId 
+            ? { ...col, taskIds: newOrder }
+            : col
+        ),
+      }));
+      
+      // Update database immediately for same-column reordering
+      try {
+        this.setSaveStatus?.('saving');
+        
+        const updates = newOrder.map((taskId: string, index: number) => ({
+          id: taskId,
+          column_id: fromColumnId,
+          position: index + 1
+        }));
+        
+        await this.bulkUpdateTaskPositions(updates);
+        
+        this.setSaveStatus?.('saved');
+        console.log('Same-column task reordering completed successfully');
+        
+      } catch (error) {
+        console.error('Failed to reorder tasks in same column:', error);
+        this.setSaveStatus?.('error');
+        throw error;
+      }
+      
+      return;
+    }
+    
+    // Cross-column move - existing logic
     // Update local state immediately for better UX
     this.setState((s: any) => {
       const newColumns = s.columns.map((col: any) => {

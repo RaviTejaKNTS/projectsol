@@ -469,7 +469,7 @@ function App() {
         onCommitRenameColumn={() => {}}
         onMoveTask={moveTask}
         onMoveColumn={(from: string, to: string) => board && moveColumn(from, to)}
-        onReorderTasksInColumn={(columnId: string, taskIds: string[]) => board && taskActions.reorderTasksInColumn(columnId, taskIds)}
+
         onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
         onStartAddColumn={startAddColumn}
         onCommitAddColumn={() => {}}
