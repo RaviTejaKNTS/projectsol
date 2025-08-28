@@ -101,7 +101,6 @@ function CardItem({ task, theme }: any) {
   );
 }
 
-<<<<<<< HEAD
 export default function TaskCard({ 
   id, 
   task, 
@@ -119,18 +118,11 @@ export default function TaskCard({
   
   const [isDraggedOver, setIsDraggedOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-=======
-export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, columnId, onMoveTask, index, taskIds, onCompleteTask }: any) {
-  const ref = useRef<HTMLDivElement>(null);
-  
-  const [isDraggedOver, setIsDraggedOver] = useState(false);
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
 
-<<<<<<< HEAD
     // Enhanced draggable with better preview and feedback
     const cleanupDraggable = draggable({
       element,
@@ -148,11 +140,6 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         setIsDragging(false);
         element.style.opacity = '';
       },
-=======
-    const cleanupDraggable = draggable({
-      element,
-      getInitialData: () => ({ type: 'task', taskId: id, columnId }),
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
       onGenerateDragPreview({ nativeSetDragImage }) {
         setCustomNativeDragPreview({
           nativeSetDragImage,
@@ -160,22 +147,16 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
           render({ container }) {
             const preview = element.cloneNode(true) as HTMLElement;
             preview.style.width = `${element.offsetWidth}px`;
-<<<<<<< HEAD
             preview.style.transform = 'rotate(3deg)';
             preview.style.opacity = '0.9';
             preview.style.border = '2px solid rgb(34 197 94)';
             preview.style.boxShadow = '0 25px 50px -12px rgba(0, 0, 0, 0.25)';
-=======
-            preview.style.transform = 'rotate(5deg)';
-            preview.style.opacity = '0.8';
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
             container.appendChild(preview);
           },
         });
       },
     });
 
-<<<<<<< HEAD
     // Enhanced drop target with precise positioning
     const cleanupDropTarget = dropTargetForElements({
       getData: () => ({ type: 'task-card', taskId: id, columnId, index }),
@@ -240,32 +221,6 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         targetIndex = Math.max(0, Math.min(targetIndex, taskIds.length));
         
         onMoveTask(fromTaskId, fromColumnId, columnId, targetIndex);
-=======
-    const cleanupDropTarget = dropTargetForElements({
-      getData: () => ({ type: 'task-card', taskId: id }),
-      element,
-      canDrop: (args) => args.source.data.type === 'task' && args.source.data.taskId !== id,
-      onDragEnter: () => setIsDraggedOver(true),
-      onDragLeave: () => setIsDraggedOver(false),
-      onDrop: (args) => {
-        const fromTaskId = args.source.data.taskId as string;
-        const fromColumnId = args.source.data.columnId as string;
-        
-        let adjustedIndex = index;
-        if (fromColumnId === columnId) {
-          const currentIndex = taskIds.indexOf(fromTaskId);
-          const targetIndex = taskIds.indexOf(id);
-          
-          if (fromTaskId === id) {
-            adjustedIndex = targetIndex;
-          } else if (fromTaskId !== id) {
-            adjustedIndex = targetIndex > currentIndex ? targetIndex - 1 : targetIndex;
-          }
-        }
-        
-        onMoveTask(fromTaskId, fromColumnId, columnId, adjustedIndex);
-        setIsDraggedOver(false);
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
       },
     });
 
@@ -273,11 +228,7 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
       cleanupDraggable();
       cleanupDropTarget();
     };
-<<<<<<< HEAD
   }, [id, columnId, onMoveTask, index, taskIds]);
-=======
-  }, [id, columnId, onMoveTask, index]);
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
 
   const handleCardClick = () => {
     onEdit();
@@ -290,15 +241,9 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
 
   return (
     <>
-<<<<<<< HEAD
       <motion.div
         ref={ref}
         data-task-id={id}
-=======
-      {isDraggedOver && <DropIndicator />}
-      <motion.div
-        ref={ref}
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
         tabIndex={0}
         onClick={handleCardClick}
         onFocus={onSelect}
@@ -311,14 +256,10 @@ export default function TaskCard({ id, task, onEdit, theme, selected, onSelect, 
         id={`task-${id}`}
         className={`relative rounded-2xl border ${theme.border} ${theme.surface} p-4 shadow-sm select-none transition-all duration-150 cursor-grab active:cursor-grabbing ${
           selected ? "ring-2 ring-emerald-500" : "hover:shadow-md"
-<<<<<<< HEAD
         } ${isDragging ? 'opacity-50' : ''} ${isDraggedOver ? 'transform scale-105' : ''}`}
         style={{
           transformOrigin: 'center',
         }}>
-=======
-        }`}>
->>>>>>> 2283453e807f43fae148164a14de839081d94cce
         {/* Circular checkbox in top-right corner */}
         <button
           onClick={handleCompleteClick}
