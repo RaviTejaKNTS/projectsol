@@ -22,26 +22,37 @@ export function TaskModal({ onClose, onSave, state, editingTaskId, newTaskColumn
     const [newLabel, setNewLabel] = useState("");
     const [columnId, setColumnId] = useState(editingTaskId?.columnId || newTaskColumnId || state.columns[0]?.id);
   
+    // Track the current task ID to prevent unnecessary resets
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+
     useEffect(() => {
-      if (editingTaskId?.taskId) {
-        const task = state.tasks[editingTaskId.taskId];
-        if (task) {
-          setTitle(task.title || "");
-          setDescription(task.description || "");
-          setPriority(task.priority || "Medium");
-          setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
-          setLabels(task.labels || []);
-          setSubtasks(task.subtasks || []);
+      const taskId = editingTaskId?.taskId;
+      
+      // Only reset form when switching to a different task or creating new task
+      if (taskId !== currentTaskId) {
+        setCurrentTaskId(taskId || null);
+        
+        if (taskId) {
+          const task = state.tasks[taskId];
+          if (task) {
+            setTitle(task.title || "");
+            setDescription(task.description || "");
+            setPriority(task.priority || "Medium");
+            setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
+            setLabels(task.labels || []);
+            setSubtasks(task.subtasks || []);
+          }
+        } else {
+          // New task
+          setTitle("");
+          setDescription("");
+          setPriority("Medium");
+          setDueDate("");
+          setLabels([]);
+          setSubtasks([]);
         }
-      } else {
-        setTitle("");
-        setDescription("");
-        setPriority("Medium");
-        setDueDate("");
-        setLabels([]);
-        setSubtasks([]);
       }
-    }, [editingTaskId, newTaskColumnId, state.tasks, state.columns]);
+    }, [editingTaskId?.taskId, currentTaskId, state.tasks]);
 
     const handleSave = () => {
       console.log('TaskModal handleSave called with labels:', labels);

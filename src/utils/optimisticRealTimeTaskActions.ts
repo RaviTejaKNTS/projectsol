@@ -189,39 +189,96 @@ export class OptimisticRealTimeTaskActions {
     }
 
     // UPDATE EXISTING TASK - Optimistic UI
-    // Optimistic update
-    this.setState((s: any) => ({
-      ...s,
-      tasks: {
-        ...s.tasks,
-        [taskId]: {
-          ...s.tasks[taskId],
-          title: (payload.title || 'Untitled').trim(),
-          description: payload.description?.trim() || '',
-          labels: (payload.labels || []).slice().sort(),
-          priority: payload.priority || 'Medium',
-          dueDate: payload.dueDate || '',
-          subtasks: (payload.subtasks || []).map((st: any) => ({ 
-            id: st.id || this.generateTaskId(), 
-            title: st.title, 
-            completed: !!st.completed 
-          })),
-          updatedAt: Date.now(),
+    const currentColumnId = (() => {
+      for (const col of this.state.columns) {
+        if (col.taskIds.includes(taskId)) return col.id;
+      }
+      return null;
+    })();
+
+    const isColumnChange = columnId && currentColumnId && columnId !== currentColumnId;
+
+    // Optimistic update - handle both metadata and column changes
+    this.setState((s: any) => {
+      let newState = {
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [taskId]: {
+            ...s.tasks[taskId],
+            title: (payload.title || 'Untitled').trim(),
+            description: payload.description?.trim() || '',
+            labels: (payload.labels || []).slice().sort(),
+            priority: payload.priority || 'Medium',
+            dueDate: payload.dueDate || '',
+            subtasks: (payload.subtasks || []).map((st: any) => ({ 
+              id: st.id || this.generateTaskId(), 
+              title: st.title, 
+              completed: !!st.completed 
+            })),
+            updatedAt: Date.now(),
+          },
         },
-      },
-    }));
+      };
+
+      // Handle column change if needed
+      if (isColumnChange) {
+        newState.columns = s.columns.map((col: any) => {
+          if (col.id === currentColumnId) {
+            // Remove from current column
+            return { ...col, taskIds: col.taskIds.filter((id: string) => id !== taskId) };
+          }
+          if (col.id === columnId) {
+            // Add to new column at the top
+            return { ...col, taskIds: [taskId, ...col.taskIds] };
+          }
+          return col;
+        });
+      }
+
+      return newState;
+    });
 
     // Database sync
     try {
       this.setSaveStatus?.('saving');
       
-      const { error } = await supabase.from('tasks').update({
+      // Update task metadata and handle column change
+      const updateData: any = {
         title: (payload.title || 'Untitled').trim(),
         description: payload.description?.trim() || '',
         priority: payload.priority || 'Medium',
         due_at: payload.dueDate || null,
         updated_at: new Date().toISOString()
-      }).eq('id', taskId);
+      };
+
+      // If column changed, update column_id and position
+      if (isColumnChange) {
+        // Get next position in target column (add at top = position 1)
+        const { data: existingTasks, error: fetchError } = await supabase
+          .from('tasks')
+          .select('id, position')
+          .eq('column_id', columnId)
+          .is('deleted_at', null)
+          .order('position', { ascending: true });
+        
+        if (fetchError) throw fetchError;
+        
+        // Shift existing tasks down
+        for (const task of existingTasks || []) {
+          const { error: updateError } = await supabase
+            .from('tasks')
+            .update({ position: task.position + 1 })
+            .eq('id', task.id);
+          
+          if (updateError) throw updateError;
+        }
+
+        updateData.column_id = columnId;
+        updateData.position = 1;
+      }
+      
+      const { error } = await supabase.from('tasks').update(updateData).eq('id', taskId);
       
       if (error) throw error;
 
