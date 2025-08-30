@@ -36,13 +36,15 @@ export function calculateTaskStats(state: any): TaskStatsData {
 
   // Tasks completed today
   const completedToday = completedTasks.filter((task: any) => {
-    const completedDate = new Date(task.completedAt || task.updatedAt);
+    const timestamp = task.completedAt || task.updatedAt;
+    const completedDate = new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000);
     return completedDate >= today;
   }).length;
 
   // Tasks completed this week
   const completedThisWeek = completedTasks.filter((task: any) => {
-    const completedDate = new Date(task.completedAt || task.updatedAt);
+    const timestamp = task.completedAt || task.updatedAt;
+    const completedDate = new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000);
     return completedDate >= weekStart;
   }).length;
 
@@ -56,7 +58,7 @@ export function calculateTaskStats(state: any): TaskStatsData {
 
   // New tasks added today
   const newTasksToday = allTasks.filter((task: any) => {
-    const createdDate = new Date(task.createdAt);
+    const createdDate = new Date(task.createdAt * 1000);
     return createdDate >= today;
   }).length;
 
@@ -64,7 +66,7 @@ export function calculateTaskStats(state: any): TaskStatsData {
   const oldestTask = activeTasks
     .filter((task: any) => task.createdAt)
     .sort((a: any, b: any) => a.createdAt - b.createdAt)[0];
-  const oldestTaskDays = oldestTask ? Math.floor((now.getTime() - oldestTask.createdAt) / (1000 * 60 * 60 * 24)) : null;
+  const oldestTaskDays = oldestTask ? Math.floor((now.getTime() - (oldestTask.createdAt * 1000)) / (1000 * 60 * 60 * 24)) : null;
 
   // Tasks scheduled for today
   const tasksScheduledToday = activeTasks.filter((task: any) => getDueDateStatus(task.dueDate) === 'today').length;
@@ -85,7 +87,8 @@ export function calculateTaskStats(state: any): TaskStatsData {
     const dayEnd = new Date(checkDate.getTime() + 86400000);
     
     const completedOnDay = completedTasks.some((task: any) => {
-      const completedDate = new Date(task.completedAt || task.updatedAt);
+      const timestamp = task.completedAt || task.updatedAt;
+      const completedDate = new Date(timestamp > 1000000000000 ? timestamp : timestamp * 1000);
       return completedDate >= dayStart && completedDate < dayEnd;
     });
     
@@ -96,7 +99,7 @@ export function calculateTaskStats(state: any): TaskStatsData {
 
   // Most used label this month
   const thisMonthTasks = allTasks.filter((task: any) => {
-    const createdDate = new Date(task.createdAt);
+    const createdDate = new Date(task.createdAt * 1000);
     return createdDate >= monthStart;
   });
   const labelCounts: Record<string, number> = {};
@@ -117,7 +120,7 @@ export function calculateTaskStats(state: any): TaskStatsData {
     .filter((task: any) => task.createdAt)
     .sort((a: any, b: any) => b.createdAt - a.createdAt)[0];
   const daysSinceLastTask = lastCreatedTask 
-    ? Math.floor((now.getTime() - lastCreatedTask.createdAt) / (1000 * 60 * 60 * 24))
+    ? Math.floor((now.getTime() - (lastCreatedTask.createdAt * 1000)) / (1000 * 60 * 60 * 24))
     : null;
 
   // Sprint completion percentage (simplified - based on current active vs completed ratio)
@@ -131,7 +134,11 @@ export function calculateTaskStats(state: any): TaskStatsData {
     .filter((task: any) => getDueDateStatus(task.dueDate) === 'past')
     .sort((a: any, b: any) => (b.completedAt || b.updatedAt) - (a.completedAt || a.updatedAt))[0];
   const hoursSinceLastOverdueCleared = recentlyCompletedOverdue
-    ? Math.floor((now.getTime() - (recentlyCompletedOverdue.completedAt || recentlyCompletedOverdue.updatedAt)) / (1000 * 60 * 60))
+    ? (() => {
+        const timestamp = recentlyCompletedOverdue.completedAt || recentlyCompletedOverdue.updatedAt;
+        const completedTime = timestamp > 1000000000000 ? timestamp : timestamp * 1000;
+        return Math.floor((now.getTime() - completedTime) / (1000 * 60 * 60));
+      })()
     : null;
 
   return {
