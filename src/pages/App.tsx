@@ -9,9 +9,9 @@ import { AuthOverlay } from "../components/auth/AuthOverlay";
 import { BoardContainer } from "../components/board/BoardContainer";
 import { DevTests } from "../components/dev/DevTests";
 import { useAppState } from "../hooks/useAppState";
-import { useRealTimeColumnActions } from "../hooks/useRealTimeColumnActions";
+import { useOptimisticRealTimeColumnActions } from "../hooks/useOptimisticRealTimeColumnActions";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { RealTimeTaskActions } from "../utils/realTimeTaskActions";
+import { OptimisticRealTimeTaskActions } from "../utils/optimisticRealTimeTaskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
 import { AccountLinkingModal } from '../components/auth/AccountLinkingModal';
 import { defaultState } from '../utils/helpers';
@@ -175,19 +175,47 @@ function App() {
     }
   }, [board]);
 
-  // Real-time action hooks - server-first approach
-  const columnActions = useRealTimeColumnActions({ 
-    setSaveStatus,
-    onRefresh: refresh
+  // Optimistic real-time action hooks - instant UI with database sync
+  const columnActions = useOptimisticRealTimeColumnActions({ 
+    state,
+    setState,
+    setSaveStatus
   });
   const {
     deleteColumn,
-    moveColumn,
-    startAddColumn
+    moveColumn: moveColumnAction
   } = columnActions;
 
-  // Task actions now write to DB first, then refresh UI
-  const taskActions = new RealTimeTaskActions({ setSaveStatus, onRefresh: refresh });
+  // Wrapper functions for compatibility
+  const startAddColumn = () => {
+    // This will be handled by the BoardContainer's add column UI
+  };
+
+  const moveColumnWrapper = (newOrder: string[]) => {
+    // Find which column moved by comparing with current order
+    const currentOrder = state.columns.map((c: any) => c.id);
+    let fromIndex = -1, toIndex = -1;
+    
+    for (let i = 0; i < newOrder.length; i++) {
+      if (currentOrder[i] !== newOrder[i]) {
+        const movedId = newOrder[i];
+        fromIndex = currentOrder.indexOf(movedId);
+        toIndex = i;
+        break;
+      }
+    }
+    
+    if (fromIndex !== -1 && toIndex !== -1) {
+      moveColumnAction(newOrder[toIndex], fromIndex, toIndex);
+    }
+  };
+
+  // Task actions with optimistic UI updates
+  const taskActions = new OptimisticRealTimeTaskActions({ 
+    state, 
+    setState, 
+    setSaveStatus
+  });
 
   // No cleanup needed for real-time actions
 
@@ -474,7 +502,7 @@ function App() {
           const [moved] = newOrder.splice(fromIndex, 1);
           newOrder.splice(toIndex, 0, moved);
           
-          moveColumn(newOrder);
+          moveColumnWrapper(newOrder);
         }}
 
         onCompleteTask={(taskId: string) => {
