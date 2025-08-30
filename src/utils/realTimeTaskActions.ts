@@ -10,18 +10,15 @@ import { v4 as uuidv4 } from 'uuid';
 export interface RealTimeTaskActionsProps {
   setSaveStatus?: (s: 'idle'|'saving'|'saved'|'error') => void;
   onRefresh?: () => Promise<void>;
-  setLoading?: (operation: string, loading: boolean) => void;
 }
 
 export class RealTimeTaskActions {
   private setSaveStatus?: (s: 'idle'|'saving'|'saved'|'error') => void;
   private onRefresh?: () => Promise<void>;
-  private setLoading?: (operation: string, loading: boolean) => void;
 
-  constructor({ setSaveStatus, onRefresh, setLoading }: RealTimeTaskActionsProps) {
+  constructor({ setSaveStatus, onRefresh }: RealTimeTaskActionsProps) {
     this.setSaveStatus = setSaveStatus;
     this.onRefresh = onRefresh;
-    this.setLoading = setLoading;
   }
 
   // Generate a real UUID for new tasks
