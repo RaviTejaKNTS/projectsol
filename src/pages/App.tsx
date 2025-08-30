@@ -9,9 +9,9 @@ import { AuthOverlay } from "../components/auth/AuthOverlay";
 import { BoardContainer } from "../components/board/BoardContainer";
 import { DevTests } from "../components/dev/DevTests";
 import { useAppState } from "../hooks/useAppState";
-import { useOptimisticColumnActions } from "../hooks/useOptimisticColumnActions";
+import { useRealTimeColumnActions } from "../hooks/useRealTimeColumnActions";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
-import { OptimisticTaskActions } from "../utils/optimisticTaskActions";
+import { RealTimeTaskActions } from "../utils/realTimeTaskActions";
 import { ProfileSidebar } from '../components/ProfileSidebar';
 import { AccountLinkingModal } from '../components/auth/AccountLinkingModal';
 import { defaultState } from '../utils/helpers';
@@ -175,27 +175,21 @@ function App() {
     }
   }, [board]);
 
-  // Pass board to all action hooks:
-  const columnActions = useOptimisticColumnActions(state, setState, { 
-    setSaveStatus 
+  // Real-time action hooks - server-first approach
+  const columnActions = useRealTimeColumnActions({ 
+    setSaveStatus,
+    onRefresh: refresh
   });
   const {
     deleteColumn,
     moveColumn,
-    startAddColumn,
-    cleanup: cleanupColumnActions
+    startAddColumn
   } = columnActions;
 
-  // Task actions now write to DB under the hood (no UI changes)
-  const taskActions = new OptimisticTaskActions({ state, setState, setSaveStatus });
+  // Task actions now write to DB first, then refresh UI
+  const taskActions = new RealTimeTaskActions({ setSaveStatus, onRefresh: refresh });
 
-  // Cleanup optimistic actions on unmount
-  useEffect(() => {
-    return () => {
-      taskActions.destroy();
-      cleanupColumnActions();
-    };
-  }, [cleanupColumnActions]);
+  // No cleanup needed for real-time actions
 
   const openNewTask = (columnId: string | null = null) => {
     setNewTaskColumnId(columnId);
@@ -468,9 +462,27 @@ function App() {
         onCancelRenameColumn={() => {}}
         onCommitRenameColumn={() => {}}
         onMoveTask={moveTask}
-        onMoveColumn={(from: string, to: string) => board && moveColumn(from, to)}
+        onMoveColumn={(from: string, to: string) => {
+          if (!board) return;
+          // Get current column order and compute new order
+          const currentOrder = state.columns.map((c: any) => c.id);
+          const fromIndex = currentOrder.indexOf(from);
+          const toIndex = currentOrder.indexOf(to);
+          if (fromIndex === -1 || toIndex === -1) return;
+          
+          const newOrder = [...currentOrder];
+          const [moved] = newOrder.splice(fromIndex, 1);
+          newOrder.splice(toIndex, 0, moved);
+          
+          moveColumn(newOrder);
+        }}
 
-        onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
+        onCompleteTask={(taskId: string) => {
+          if (!board) return;
+          const task = state.tasks[taskId];
+          if (!task) return;
+          taskActions.completeTask(taskId, task.completed);
+        }}
         onStartAddColumn={startAddColumn}
         onCommitAddColumn={() => {}}
         onCancelAddColumn={() => {}}
@@ -495,7 +507,12 @@ function App() {
           allLabels={allLabels}
           onDelete={(taskId: string) => board && taskActions.deleteTask(taskId)}
           onDeleteLabel={(name: string) => board && taskActions.deleteLabel(name)}
-          onCompleteTask={(taskId: string) => board && taskActions.completeTask(taskId)}
+          onCompleteTask={(taskId: string) => {
+            if (!board) return;
+            const task = state.tasks[taskId];
+            if (!task) return;
+            taskActions.completeTask(taskId, task.completed);
+          }}
           theme={theme}
         />
       )}

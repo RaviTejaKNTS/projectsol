@@ -284,40 +284,50 @@ export function useRelationalState(userId: UUID | null): RelationalLoad {
     return () => clearInterval(interval);
   }, [board?.id, refresh]);
 
-  // Add real-time subscriptions - but don't refresh immediately for optimistic updates
+  // Real-time subscriptions for immediate server updates
   useEffect(() => {
     if (!board?.id) return;
+    
+    console.log('Setting up real-time subscriptions for board:', board.id);
     
     const subscription = supabase
       .channel(`board-${board.id}`)
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'tasks' },
+        { event: '*', schema: 'public', table: 'tasks', filter: `board_id=eq.${board.id}` },
         (payload) => { 
-          // Only refresh for changes not made by the current user to avoid conflicts
-          // with optimistic updates
-          console.log('Database change detected for tasks:', payload);
-          // Don't refresh immediately - let optimistic updates handle the UI
+          console.log('Real-time task change detected:', payload);
+          // Refresh immediately for real-time updates
+          setTimeout(() => refresh(), 100); // Small delay to ensure DB consistency
         }
       )
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'board_columns' },
+        { event: '*', schema: 'public', table: 'board_columns', filter: `board_id=eq.${board.id}` },
         (payload) => { 
-          console.log('Database change detected for columns:', payload);
-          // Don't refresh columns as they're now handled optimistically
-          // Only refresh for external changes (other users)
+          console.log('Real-time column change detected:', payload);
+          // Refresh immediately for real-time updates
+          setTimeout(() => refresh(), 100);
         }
       )
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'labels' },
+        { event: '*', schema: 'public', table: 'labels', filter: `board_id=eq.${board.id}` },
         (payload) => { 
-          console.log('Database change detected for labels:', payload);
-          // Refresh labels as they're not handled optimistically yet
-          refresh(); 
+          console.log('Real-time label change detected:', payload);
+          // Refresh immediately for real-time updates
+          setTimeout(() => refresh(), 100);
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'subtasks' },
+        (payload) => { 
+          console.log('Real-time subtask change detected:', payload);
+          // Refresh for subtask changes
+          setTimeout(() => refresh(), 100);
         }
       )
       .subscribe();
       
     return () => {
+      console.log('Unsubscribing from real-time updates for board:', board.id);
       subscription.unsubscribe();
     };
   }, [board?.id, refresh]);
